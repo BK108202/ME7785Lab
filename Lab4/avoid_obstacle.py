@@ -18,6 +18,7 @@ class AvoidObstacle(Node):
         radian_x = obj_pose.theta
         
         kp_w = 2.0
+        kp_v = 1.1
         des_x = 0.3
         tolerance_radian = 5*math.pi/180
         tolerance_x = 0.1
@@ -27,22 +28,23 @@ class AvoidObstacle(Node):
             twist.angular.z = 0.0
             self._vel_publisher.publish(twist)
             return
-
-        e_dist = des_x - dist_x
-        e_angle = -radian_x
-
-        if abs(e_dist) < tolerance_x:
-            e_dist = 0.0
-        if abs(radian_x) < tolerance_radian:
-            e_angle = 0.0
         
-        w = kp_w * e_angle
+        lateral_distance = dist_x * math.tan(radian_x)
+        e_lat = des_x - lateral_distance
+        e_dist = dist_x - des_x
 
-        max_velocity = 0.1
-        v = max_velocity
+        if abs(e_lat) < tolerance_x:
+            e_lat = 0.0
+        if abs(radian_x) < tolerance_radian:
+            radian_x = 0.0
+        
+        v = kp_v * e_dist
+        w = kp_w * e_lat
 
         # Saturation
+        max_velocity = 0.1
         max_angular_velocity = 1.5
+        v = max(min(w, max_velocity), -max_velocity)
         w = max(min(w, max_angular_velocity), -max_angular_velocity)
 
         twist.linear.x = float(v)
