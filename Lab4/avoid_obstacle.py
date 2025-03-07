@@ -68,16 +68,21 @@ class AvoidObstacle(Node):
         kp_w = 2.0
         stop_duration = 10
 
-        obstacle_threshold = 0.3  # meters
+        obstacle_threshold = 0.5  # meters
         if self.endpoint is not None and not math.isnan(self.endpoint.x) and self.endpoint.x < obstacle_threshold:
-            # Compute the endpoint position in the robot's frame.
-            endpoint_robot_x = self.endpoint.x * math.cos(self.endpoint.theta)
-            endpoint_robot_y = self.endpoint.x * math.sin(self.endpoint.theta)
-            # Define a lateral offset (in robot frame) to steer away from the obstacle.
-            # Here we choose an offset to the right (negative y) of 0.5 m.
-            offset = 0.3
-            avoid_robot_x = endpoint_robot_x
-            avoid_robot_y = endpoint_robot_y - offset
+            # Reconstruct the true range d from the endpoint message.
+            if abs(math.cos(self.endpoint.theta)) > 1e-6:
+                d = self.endpoint.x / math.cos(self.endpoint.theta)
+            else:
+                d = self.endpoint.x
+            # Compute the endpoint's robot-frame coordinates.
+            endpoint_robot_x = d * math.cos(self.endpoint.theta)  # ideally equals self.endpoint.x
+            endpoint_robot_y = d * math.sin(self.endpoint.theta)
+            # Add offsets: a forward offset to move further ahead, and a lateral offset to steer away.
+            forward_offset = 0.5  # move further ahead from the obstacle
+            lateral_offset = -0.3 # steer to the right (adjust sign if needed)
+            avoid_robot_x = endpoint_robot_x + forward_offset
+            avoid_robot_y = endpoint_robot_y + lateral_offset
             # Transform the avoidance point from the robot frame to the global frame.
             avoid_global_x = self.globalPos.x + avoid_robot_x * math.cos(self.globalAng) - avoid_robot_y * math.sin(self.globalAng)
             avoid_global_y = self.globalPos.y + avoid_robot_x * math.sin(self.globalAng) + avoid_robot_y * math.cos(self.globalAng)
@@ -88,7 +93,7 @@ class AvoidObstacle(Node):
         else:
             # No obstacle detected: use the current waypoint goal.
             if self.current_goal_index >= len(self.waypoints):
-                v = 0
+                v = 0.1
                 w = 0
                 twist.linear.x = float(v)
                 twist.angular.z = float(w)
