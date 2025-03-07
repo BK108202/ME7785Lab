@@ -88,7 +88,7 @@ class AvoidObstacle(Node):
             avoid_global_y = self.globalPos.y + avoid_robot_x * math.sin(self.globalAng) + avoid_robot_y * math.cos(self.globalAng)
             goal_x = avoid_global_x
             goal_y = avoid_global_y
-            tolerance = 0.1
+            tolerance = 0.05
             self.get_logger().info(f"Avoiding obstacle: new goal set to ({goal_x:.2f}, {goal_y:.2f})")
         else:
             # No obstacle detected: use the current waypoint goal.
