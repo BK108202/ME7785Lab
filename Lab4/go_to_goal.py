@@ -9,7 +9,7 @@ import time
 class GoToGoal(Node):
 
     def __init__(self):
-        super().__init__('cgo_to_goal')
+        super().__init__('go_to_goal')
         self._vel_publisher = self.create_publisher(Twist, '/cmd_vel', 5)
         self._odom_subscriber = self.create_subscription(Odometry, '/odom', self.update_Odometry, 10)
 
