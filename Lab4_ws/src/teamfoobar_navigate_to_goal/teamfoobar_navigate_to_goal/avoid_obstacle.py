@@ -76,7 +76,7 @@ class AvoidObstacle(Node):
         kp_v = 5.0
         kp_w = 2.0
 
-        obstacle_threshold = 0.34  # meters
+        obstacle_threshold = 0.30  # meters
         if self.endpoint is not None and not math.isnan(self.endpoint.x) and self.endpoint.x < obstacle_threshold:
             # Reconstruct the true range d from the endpoint message.
             if abs(math.cos(self.endpoint.theta)) > 1e-6:
