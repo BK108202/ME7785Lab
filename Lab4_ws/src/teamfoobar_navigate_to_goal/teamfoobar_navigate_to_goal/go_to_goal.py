@@ -67,7 +67,7 @@ class GoToGoal(Node):
         twist = Twist()
         kp_v = 4.0
         kp_w = 2.0
-        stop_duration = 10
+        stop_duration = 3
         if self.current_goal_index >= len(self.waypoints):
             v = 0
             w = 0
