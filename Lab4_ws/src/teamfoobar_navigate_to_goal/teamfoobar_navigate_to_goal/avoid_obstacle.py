@@ -73,9 +73,9 @@ class AvoidObstacle(Node):
             return
         
         twist = Twist()
-        kp_v = 1.1
-        kp_w = 2.0
-        stop_duration = 10
+        kp_v = 5.0
+        kp_w = 4.0
+        stop_duration = 3
 
         obstacle_threshold = 0.5  # meters
         if self.endpoint is not None and not math.isnan(self.endpoint.x) and self.endpoint.x < obstacle_threshold:
