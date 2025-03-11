@@ -64,11 +64,11 @@ class AvoidObstacle(Node):
 
     def timer_callback(self):
         twist = Twist()
-        kp_v = 1.1
+        kp_v = 4.0
         kp_w = 2.0
-        stop_duration = 10
+        stop_duration = 3
 
-        obstacle_threshold = 0.35  # meters
+        obstacle_threshold = 0.30  # meters
         if self.endpoint is not None and not math.isnan(self.endpoint.x) and self.endpoint.x < obstacle_threshold:
             # Reconstruct the true range d from the endpoint message.
             if abs(math.cos(self.endpoint.theta)) > 1e-6:
@@ -111,7 +111,7 @@ class AvoidObstacle(Node):
         
         if e_dist < tolerance:
             v = -0.1
-            w = 0
+            w = 0.0
             twist.linear.x = float(v)
             twist.angular.z = float(w)
             self._vel_publisher.publish(twist)
