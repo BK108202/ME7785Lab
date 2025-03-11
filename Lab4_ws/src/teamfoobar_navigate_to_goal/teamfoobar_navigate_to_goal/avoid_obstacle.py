@@ -74,7 +74,7 @@ class AvoidObstacle(Node):
 
         twist = Twist()
         kp_v = 4.0
-        kp_w = 2.0
+        kp_w = 4.0
         stop_duration = 3
 
         obstacle_threshold = 0.30  # meters
