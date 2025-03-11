@@ -97,7 +97,7 @@ class AvoidObstacle(Node):
             avoid_global_y = self.globalPos.y + avoid_robot_x * math.sin(self.globalAng) + avoid_robot_y * math.cos(self.globalAng)
             goal_x = avoid_global_x
             goal_y = avoid_global_y
-            tolerance = 0.05
+            tolerance = 0.1
             self.get_logger().info(f"Avoiding obstacle: new goal set to ({goal_x:.2f}, {goal_y:.2f})")
         else:
             # No obstacle detected: use the current waypoint goal.
@@ -120,7 +120,7 @@ class AvoidObstacle(Node):
         
         if e_dist < tolerance:
             v = -0.1
-            w = 0
+            w = 1
             twist.linear.x = float(v)
             twist.angular.z = float(w)
             self._vel_publisher.publish(twist)
