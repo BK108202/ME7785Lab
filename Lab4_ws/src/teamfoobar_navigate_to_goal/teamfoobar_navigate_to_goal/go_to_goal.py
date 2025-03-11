@@ -23,13 +23,15 @@ class GoToGoal(Node):
         self.waypoints = [
             (1.5, 0.0, 0.01),
             (1.5, 1.4, 0.05),
-            (0.0, 1.4, 0.15)]
+            (0.0, 1.4, 0.10)]
         self.current_goal_index = 0
 
         self.timer = self.create_timer(0.1, self.timer_callback)
 
         self.state = 1  # Default state
         self.state_subscriber = self.create_subscription(UInt32, 'state', self.state_callback, 10)
+        
+        # ... [rest of initialization remains the same] ...
 
     def state_callback(self, msg):
         self.state = msg.data
@@ -63,7 +65,7 @@ class GoToGoal(Node):
             return
         
         twist = Twist()
-        kp_v = 5.0
+        kp_v = 4.0
         kp_w = 2.0
         stop_duration = 3
         if self.current_goal_index >= len(self.waypoints):

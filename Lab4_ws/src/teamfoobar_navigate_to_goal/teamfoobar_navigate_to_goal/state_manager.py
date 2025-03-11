@@ -13,7 +13,7 @@ class StateManager(Node):
         self.state_publisher = self.create_publisher(UInt32, 'state', 10)
         
         self.safe_dist = 0.35
-        self.epsilon = 0.1
+        self.epsilon = 0.05
 
         self.object_range_subscriber = self.create_subscription(
             Pose2D,
