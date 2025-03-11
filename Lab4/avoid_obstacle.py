@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, Point, Pose2D
 from nav_msgs.msg import Odometry
+from std_msgs.msg import UInt32
 import math
 import numpy as np
 import time
@@ -33,6 +34,13 @@ class AvoidObstacle(Node):
             self.endpoint_callback,
             10
         )
+        self.state = 2  # Default state for avoid_obstacle logic
+        self.state_subscriber = self.create_subscription(UInt32, 'state', self.state_callback, 10)
+        
+        # ... [rest of initialization remains the same] ...
+
+    def state_callback(self, msg):
+        self.state = msg.data
 
     def endpoint_callback(self, msg):
         self.endpoint = msg
@@ -63,6 +71,8 @@ class AvoidObstacle(Node):
         self.globalAng = orientation - self.Init_ang
 
     def timer_callback(self):
+        if self.state != 2:
+            return
         twist = Twist()
         kp_v = 1.1
         kp_w = 2.0
