@@ -119,7 +119,7 @@ class AvoidObstacle(Node):
         e_theta = des_theta - self.globalAng
         
         if e_dist < tolerance:
-            v = 0.1
+            v = 0.05
             w = -0.5
             twist.linear.x = float(v)
             twist.angular.z = float(w)
