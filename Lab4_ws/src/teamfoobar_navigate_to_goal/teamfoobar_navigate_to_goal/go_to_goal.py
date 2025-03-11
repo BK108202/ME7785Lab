@@ -84,7 +84,7 @@ class GoToGoal(Node):
         des_theta = math.atan2(math.sin(des_theta), math.cos(des_theta))
 
         e_theta = des_theta - self.globalAng
-        # e_theta = math.atan2(math.sin(e_theta), math.cos(e_theta))
+        e_theta = math.atan2(math.sin(e_theta), math.cos(e_theta))
         
         if e_dist < tolerance:
             v = 0
