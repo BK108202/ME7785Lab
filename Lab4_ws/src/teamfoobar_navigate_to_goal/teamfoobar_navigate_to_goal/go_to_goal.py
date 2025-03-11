@@ -21,9 +21,9 @@ class GoToGoal(Node):
         self.globalPos = Point()
 
         self.waypoints = [
-            (1.5, 0.0, 0.10),
-            (1.5, 1.4, 0.15),
-            (0.0, 1.4, 0.20)]
+            (1.5, 0.0, 0.01),
+            (1.5, 1.4, 0.05),
+            (0.0, 1.4, 0.15)]
         self.current_goal_index = 0
 
         self.timer = self.create_timer(0.1, self.timer_callback)
@@ -63,9 +63,9 @@ class GoToGoal(Node):
             return
         
         twist = Twist()
-        kp_v = 1.1
+        kp_v = 5.0
         kp_w = 2.0
-        stop_duration = 10
+        stop_duration = 3
         if self.current_goal_index >= len(self.waypoints):
             v = 0
             w = 0
