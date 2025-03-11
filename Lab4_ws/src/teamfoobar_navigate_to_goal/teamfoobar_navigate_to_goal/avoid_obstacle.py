@@ -125,7 +125,7 @@ class AvoidObstacle(Node):
             twist.angular.z = float(w)
             self._vel_publisher.publish(twist)
             # time.sleep(stop_duration)
-            # self.current_goal_index = self.current_goal_index + 1
+            self.current_goal_index = self.current_goal_index + 1
             return
         
         v = kp_v * e_dist
