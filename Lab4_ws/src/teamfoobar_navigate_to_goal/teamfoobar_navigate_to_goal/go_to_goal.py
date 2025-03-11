@@ -67,7 +67,7 @@ class GoToGoal(Node):
         twist = Twist()
         kp_v = 4.0
         kp_w = 2.0
-        stop_duration = 3
+        stop_duration = 10
         if self.current_goal_index >= len(self.waypoints):
             v = 0
             w = 0
@@ -86,6 +86,7 @@ class GoToGoal(Node):
         des_theta = math.atan2(math.sin(des_theta), math.cos(des_theta))
 
         e_theta = des_theta - self.globalAng
+        e_theta = math.atan2(math.sin(e_theta), math.cos(e_theta))
         
         if e_dist < tolerance:
             v = 0
