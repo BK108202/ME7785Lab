@@ -74,8 +74,7 @@ class AvoidObstacle(Node):
         
         twist = Twist()
         kp_v = 5.0
-        kp_w = 2.0
-        stop_duration = 3
+        kp_w = 4.0
 
         obstacle_threshold = 0.3  # meters
         if self.endpoint is not None and not math.isnan(self.endpoint.x) and self.endpoint.x < obstacle_threshold:
@@ -120,7 +119,7 @@ class AvoidObstacle(Node):
         
         if e_dist < tolerance:
             v = -0.1
-            w = -1
+            w = -1.0
             twist.linear.x = float(v)
             twist.angular.z = float(w)
             self._vel_publisher.publish(twist)
