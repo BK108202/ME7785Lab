@@ -15,7 +15,7 @@ class AvoidObstacle(Node):
         self._vel_publisher = self.create_publisher(Twist, '/cmd_vel', 5)
         self._odom_subscriber = self.create_subscription(Odometry, '/odom', self.update_Odometry, 10)
 
-        self.Init = True
+        self.Init = False
         self.Init_ang = 0.0
         self.globalAng = 0.0
         self.Init_pos = Point()
@@ -34,7 +34,6 @@ class AvoidObstacle(Node):
             self.endpoint_callback,
             10
         )
-        
         self.state = 2  # Default state for avoid_obstacle logic
         self.state_subscriber = self.create_subscription(UInt32, 'state', self.state_callback, 10)
 
