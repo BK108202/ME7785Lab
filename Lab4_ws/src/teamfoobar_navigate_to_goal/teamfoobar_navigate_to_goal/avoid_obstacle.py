@@ -77,7 +77,7 @@ class AvoidObstacle(Node):
         kp_w = 4.0
         stop_duration = 3
 
-        obstacle_threshold = 0.3  # meters
+        obstacle_threshold = 0.35  # meters
         if self.endpoint is not None and not math.isnan(self.endpoint.x) and self.endpoint.x < obstacle_threshold:
             # Reconstruct the true range d from the endpoint message.
             if abs(math.cos(self.endpoint.theta)) > 1e-6:
@@ -124,7 +124,7 @@ class AvoidObstacle(Node):
             twist.linear.x = float(v)
             twist.angular.z = float(w)
             self._vel_publisher.publish(twist)
-            # time.sleep(stop_duration)
+            time.sleep(stop_duration)
             self.current_goal_index = self.current_goal_index + 1
             return
         
