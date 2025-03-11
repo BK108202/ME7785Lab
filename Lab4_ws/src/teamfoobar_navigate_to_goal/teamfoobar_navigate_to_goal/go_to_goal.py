@@ -20,9 +20,9 @@ class GoToGoal(Node):
         self.globalPos = Point()
 
         self.waypoints = [
-            (1.5, 0.0, 0.10),
-            (1.5, 1.4, 0.15),
-            (0.0, 1.4, 0.20)]
+            (1.5, 0.0, 0.01),
+            (1.5, 1.4, 0.05),
+            (0.0, 1.4, 0.10)]
         self.current_goal_index = 0
 
         self.timer = self.create_timer(0.1, self.timer_callback)
