@@ -41,8 +41,8 @@ class GetObjectRange(Node):
         ranges = scan.ranges
 
         # Use an angular window from -30 to 30 degrees.
-        lower_bound = -math.radians(30)
-        upper_bound = math.radians(30)
+        lower_bound = -math.radians(50)
+        upper_bound = math.radians(50)
 
         # Threshold (in meters) to decide if consecutive points belong to the same object.
         cluster_threshold = 0.1
