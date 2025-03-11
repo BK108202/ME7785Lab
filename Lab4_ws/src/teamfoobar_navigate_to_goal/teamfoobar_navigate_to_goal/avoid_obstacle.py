@@ -2,7 +2,6 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, Point, Pose2D
 from nav_msgs.msg import Odometry
-from std_msgs.msg import UInt32
 import math
 import numpy as np
 import time
@@ -34,11 +33,6 @@ class AvoidObstacle(Node):
             self.endpoint_callback,
             10
         )
-        self.state = 2  # Default state for avoid_obstacle logic
-        self.state_subscriber = self.create_subscription(UInt32, 'state', self.state_callback, 10)
-
-    def state_callback(self, msg):
-        self.state = msg.data
 
     def endpoint_callback(self, msg):
         self.endpoint = msg
@@ -69,14 +63,12 @@ class AvoidObstacle(Node):
         self.globalAng = orientation - self.Init_ang
 
     def timer_callback(self):
-        if self.state != 2:
-            return
-        
         twist = Twist()
-        kp_v = 5.0
+        kp_v = 1.1
         kp_w = 2.0
+        stop_duration = 10
 
-        obstacle_threshold = 0.30  # meters
+        obstacle_threshold = 0.4  # meters
         if self.endpoint is not None and not math.isnan(self.endpoint.x) and self.endpoint.x < obstacle_threshold:
             # Reconstruct the true range d from the endpoint message.
             if abs(math.cos(self.endpoint.theta)) > 1e-6:
@@ -87,8 +79,8 @@ class AvoidObstacle(Node):
             endpoint_robot_x = d * math.cos(self.endpoint.theta)  # ideally equals self.endpoint.x
             endpoint_robot_y = d * math.sin(self.endpoint.theta)
             # Add offsets: a forward offset to move further ahead, and a lateral offset to steer away.
-            forward_offset = 0.1  # move further ahead from the obstacle
-            lateral_offset = -0.2 # steer to the right (adjust sign if needed)
+            forward_offset = 0.5  # move further ahead from the obstacle
+            lateral_offset = -0.3 # steer to the right (adjust sign if needed)
             avoid_robot_x = endpoint_robot_x + forward_offset
             avoid_robot_y = endpoint_robot_y + lateral_offset
             # Transform the avoidance point from the robot frame to the global frame.
@@ -102,7 +94,7 @@ class AvoidObstacle(Node):
             # No obstacle detected: use the current waypoint goal.
             if self.current_goal_index >= len(self.waypoints):
                 v = 0.1
-                w = 0.0
+                w = 0
                 twist.linear.x = float(v)
                 twist.angular.z = float(w)
                 self._vel_publisher.publish(twist)
@@ -119,11 +111,11 @@ class AvoidObstacle(Node):
         
         if e_dist < tolerance:
             v = -0.1
-            w = -1.0
+            w = 0
             twist.linear.x = float(v)
             twist.angular.z = float(w)
             self._vel_publisher.publish(twist)
-            # time.sleep(stop_duration)
+            time.sleep(stop_duration)
             self.current_goal_index = self.current_goal_index + 1
             return
         

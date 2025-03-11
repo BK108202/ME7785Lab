@@ -2,7 +2,6 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, Point
 from nav_msgs.msg import Odometry
-from std_msgs.msg import UInt32
 import math
 import numpy as np
 import time
@@ -10,7 +9,7 @@ import time
 class GoToGoal(Node):
 
     def __init__(self):
-        super().__init__('go_to_goal')
+        super().__init__('cgo_to_goal')
         self._vel_publisher = self.create_publisher(Twist, '/cmd_vel', 5)
         self._odom_subscriber = self.create_subscription(Odometry, '/odom', self.update_Odometry, 10)
 
@@ -21,18 +20,12 @@ class GoToGoal(Node):
         self.globalPos = Point()
 
         self.waypoints = [
-            (1.5, 0.0, 0.01),
-            (1.5, 1.4, 0.05),
-            (0.0, 1.4, 0.15)]
+            (1.5, 0.0, 0.10),
+            (1.5, 1.4, 0.15),
+            (0.0, 1.4, 0.20)]
         self.current_goal_index = 0
 
         self.timer = self.create_timer(0.1, self.timer_callback)
-
-        self.state = 1  # Default state
-        self.state_subscriber = self.create_subscription(UInt32, 'state', self.state_callback, 10)
-
-    def state_callback(self, msg):
-        self.state = msg.data
     
     def update_Odometry(self, Odom):
         position = Odom.pose.pose.position
@@ -59,13 +52,10 @@ class GoToGoal(Node):
         self.globalAng = orientation - self.Init_ang
 
     def timer_callback(self):
-        if self.state != 1:
-            return
-        
         twist = Twist()
-        kp_v = 5.0
+        kp_v = 1.1
         kp_w = 2.0
-        stop_duration = 3
+        stop_duration = 10
         if self.current_goal_index >= len(self.waypoints):
             v = 0
             w = 0
@@ -84,7 +74,6 @@ class GoToGoal(Node):
         des_theta = math.atan2(math.sin(des_theta), math.cos(des_theta))
 
         e_theta = des_theta - self.globalAng
-        e_theta = math.atan2(math.sin(e_theta), math.cos(e_theta))
         
         if e_dist < tolerance:
             v = 0
