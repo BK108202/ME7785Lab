@@ -15,7 +15,7 @@ class AvoidObstacle(Node):
         self._vel_publisher = self.create_publisher(Twist, '/cmd_vel', 5)
         self._odom_subscriber = self.create_subscription(Odometry, '/odom', self.update_Odometry, 10)
 
-        self.Init = False
+        self.Init = True
         self.Init_ang = 0.0
         self.globalAng = 0.0
         self.Init_pos = Point()
