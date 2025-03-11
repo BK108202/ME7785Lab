@@ -120,12 +120,12 @@ class AvoidObstacle(Node):
         
         if e_dist < tolerance:
             v = -0.1
-            w = -1
+            w = 0.0
             twist.linear.x = float(v)
             twist.angular.z = float(w)
             self._vel_publisher.publish(twist)
             # time.sleep(stop_duration)
-            self.current_goal_index = self.current_goal_index + 1
+            # self.current_goal_index = self.current_goal_index + 1
             return
         
         v = kp_v * e_dist
