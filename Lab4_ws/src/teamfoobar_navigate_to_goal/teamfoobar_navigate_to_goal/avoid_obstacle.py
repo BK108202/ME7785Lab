@@ -102,7 +102,7 @@ class AvoidObstacle(Node):
         else:
             # No obstacle detected: use the current waypoint goal.
             if self.current_goal_index >= len(self.waypoints):
-                v = 0.0
+                v = 0.1
                 w = 0.0
                 twist.linear.x = float(v)
                 twist.angular.z = float(w)
