@@ -21,7 +21,7 @@ class GoToGoal(Node):
         self.globalPos = Point()
 
         self.waypoints = [
-            (1.5, 0.0, 0.01),
+            (1.5, 0.0, -0.01),
             (1.5, 1.4, 0.05),
             (0.0, 1.4, 0.15)]
         self.current_goal_index = 0
