@@ -22,10 +22,10 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-        # 'go_to_goal = teamfoobar_navigate_to_goal.go_to_goal:main',
+        'go_to_goal = teamfoobar_navigate_to_goal.go_to_goal:main',
         'get_object_range = teamfoobar_navigate_to_goal.get_object_range:main',
         'avoid_obstacle = teamfoobar_navigate_to_goal.avoid_obstacle:main',
-        # 'state_manager = teamfoobar_navigate_to_goal.state_manager:main',
+        'state_manager = teamfoobar_navigate_to_goal.state_manager:main',
         ],
     },
 )
