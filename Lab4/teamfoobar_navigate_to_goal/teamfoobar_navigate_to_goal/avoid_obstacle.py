@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist, Point, Pose2D
 from nav_msgs.msg import Odometry
+from std_msgs.msg import UInt32
 import math
 import numpy as np
 import time
@@ -33,6 +34,12 @@ class AvoidObstacle(Node):
             self.endpoint_callback,
             10
         )
+        
+        self.state = 2  # Default state for avoid_obstacle logic
+        self.state_subscriber = self.create_subscription(UInt32, 'state', self.state_callback, 10)
+
+    def state_callback(self, msg):
+        self.state = msg.data
 
     def endpoint_callback(self, msg):
         self.endpoint = msg
@@ -63,6 +70,9 @@ class AvoidObstacle(Node):
         self.globalAng = orientation - self.Init_ang
 
     def timer_callback(self):
+        if self.state != 2:
+            return
+        
         twist = Twist()
         kp_v = 1.1
         kp_w = 2.0
@@ -93,8 +103,8 @@ class AvoidObstacle(Node):
         else:
             # No obstacle detected: use the current waypoint goal.
             if self.current_goal_index >= len(self.waypoints):
-                v = 0.1
-                w = 0
+                v = 0.0
+                w = 0.0
                 twist.linear.x = float(v)
                 twist.angular.z = float(w)
                 self._vel_publisher.publish(twist)
@@ -110,7 +120,7 @@ class AvoidObstacle(Node):
         e_theta = des_theta - self.globalAng
         
         if e_dist < tolerance:
-            v = 0
+            v = -0.1
             w = 0
             twist.linear.x = float(v)
             twist.angular.z = float(w)

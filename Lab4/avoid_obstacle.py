@@ -36,8 +36,6 @@ class AvoidObstacle(Node):
         )
         self.state = 2  # Default state for avoid_obstacle logic
         self.state_subscriber = self.create_subscription(UInt32, 'state', self.state_callback, 10)
-        
-        # ... [rest of initialization remains the same] ...
 
     def state_callback(self, msg):
         self.state = msg.data
@@ -73,6 +71,7 @@ class AvoidObstacle(Node):
     def timer_callback(self):
         if self.state != 2:
             return
+        
         twist = Twist()
         kp_v = 1.1
         kp_w = 2.0
@@ -120,7 +119,7 @@ class AvoidObstacle(Node):
         e_theta = des_theta - self.globalAng
         
         if e_dist < tolerance:
-            v = 0
+            v = -0.1
             w = 0
             twist.linear.x = float(v)
             twist.angular.z = float(w)
