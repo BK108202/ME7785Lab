@@ -89,7 +89,7 @@ class AvoidObstacle(Node):
             endpoint_robot_y = d * math.sin(self.endpoint.theta)
             # Add offsets: a forward offset to move further ahead, and a lateral offset to steer away.
             forward_offset = 0.5  # move further ahead from the obstacle
-            lateral_offset = -0.3 # steer to the right (adjust sign if needed)
+            lateral_offset = 0 # steer to the right (adjust sign if needed)
             avoid_robot_x = endpoint_robot_x + forward_offset
             avoid_robot_y = endpoint_robot_y + lateral_offset
             # Transform the avoidance point from the robot frame to the global frame.
