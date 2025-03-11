@@ -74,7 +74,7 @@ class AvoidObstacle(Node):
         
         twist = Twist()
         kp_v = 5.0
-        kp_w = 4.0
+        kp_w = 2.0
         stop_duration = 3
 
         obstacle_threshold = 0.3  # meters
@@ -124,7 +124,7 @@ class AvoidObstacle(Node):
             twist.linear.x = float(v)
             twist.angular.z = float(w)
             self._vel_publisher.publish(twist)
-            time.sleep(stop_duration)
+            # time.sleep(stop_duration)
             self.current_goal_index = self.current_goal_index + 1
             return
         
