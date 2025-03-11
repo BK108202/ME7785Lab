@@ -77,7 +77,7 @@ class AvoidObstacle(Node):
         kp_w = 4.0
         stop_duration = 3
 
-        obstacle_threshold = 0.25  # meters
+        obstacle_threshold = 0.3  # meters
         if self.endpoint is not None and not math.isnan(self.endpoint.x) and self.endpoint.x < obstacle_threshold:
             # Reconstruct the true range d from the endpoint message.
             if abs(math.cos(self.endpoint.theta)) > 1e-6:
@@ -97,7 +97,7 @@ class AvoidObstacle(Node):
             avoid_global_y = self.globalPos.y + avoid_robot_x * math.sin(self.globalAng) + avoid_robot_y * math.cos(self.globalAng)
             goal_x = avoid_global_x
             goal_y = avoid_global_y
-            tolerance = 0.1
+            tolerance = 0.05
             self.get_logger().info(f"Avoiding obstacle: new goal set to ({goal_x:.2f}, {goal_y:.2f})")
         else:
             # No obstacle detected: use the current waypoint goal.
@@ -120,7 +120,7 @@ class AvoidObstacle(Node):
         
         if e_dist < tolerance:
             v = -0.1
-            w = 1
+            w = -1
             twist.linear.x = float(v)
             twist.angular.z = float(w)
             self._vel_publisher.publish(twist)
