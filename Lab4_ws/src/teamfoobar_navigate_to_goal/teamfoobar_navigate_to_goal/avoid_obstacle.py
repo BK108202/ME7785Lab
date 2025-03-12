@@ -120,7 +120,7 @@ class AvoidObstacle(Node):
         
         if e_dist < tolerance:
             v = 0.05
-            w = -0.5
+            w = -0.75
             twist.linear.x = float(v)
             twist.angular.z = float(w)
             self._vel_publisher.publish(twist)
