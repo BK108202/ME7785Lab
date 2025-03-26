@@ -3,9 +3,9 @@ from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 import math
 
-class GoToGoal(Node):
+class setwaypoints(Node):
     def __init__(self):
-        super().__init__('go_to_goal')
+        super().__init__('set_waypoints')
         self.goal_pub = self.create_publisher(PoseStamped, '/goal_pose', 10)
         self.amcl_subscriber = self.create_subscription(
             PoseWithCovarianceStamped,
@@ -107,7 +107,7 @@ class GoToGoal(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = GoToGoal()
+    node = setwaypoints()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
