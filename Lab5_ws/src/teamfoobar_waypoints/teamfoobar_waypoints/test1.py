@@ -10,17 +10,18 @@ class NavigationActionClient(Node):
         super().__init__('navigation_action_client')
         self._action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
 
-        self.waypoints = [
-            (1.1, 1.8, 0.0),
-            (3.5, 0.2, 0.0),
-            (1.9, 0.1, 0.0)
-        ]
-
         # self.waypoints = [
-        #     (2.6, 0.38, 0.0),
-        #     (2.1, 0.91, 0.0),
-        #     (2.9, 1.4, 0.0)
+        #     (1.1, 1.8, 0.0),
+        #     (3.5, 0.2, 0.0),
+        #     (1.9, 0.1, 0.0)
         # ]
+
+        self.waypoints = [
+            (2.6, 0.3, 0.0),
+            (2.0, 0.9, 0.0),
+            (0.9, 0.7, 0.0),
+            (2.7, 1.3, 0.0)
+        ]
         
         self.current_goal_index = 0
 
