@@ -31,6 +31,10 @@ class Test(Node):
         self.last_goal_time = self.get_clock().now()
         self.min_feedback_delay = 2.0  # seconds to wait before processing feedback
 
+        # --- New attributes for goal reached delay ---
+        self.goal_reached_delay = 1.0  # seconds to wait after a goal is reached
+        self.goal_reached_timestamp = None  # To record when a goal was first reached
+
     def timer_callback(self):
         # Publish a new goal only if none is active
         if self.current_goal_index < len(self.waypoints) and not self.new_goal_sent:
@@ -69,12 +73,17 @@ class Test(Node):
         distance_remaining = msg.feedback.distance_remaining
         self.get_logger().info(f"Distance remaining: {distance_remaining:.2f} m")
 
-        # If the distance remaining is below the tolerance, consider the goal reached
-        if self.current_goal_index < len(self.waypoints) and distance_remaining < self.tolerance:
-            self.get_logger().info("Goal reached!")
-            self.current_goal_index += 1
-            self.new_goal_sent = False  # Allow the next goal to be published
-        
+        # If the distance remaining is below the tolerance, consider the goal reached.
+        # Add a delay so we don't process multiple feedback messages for the same waypoint.
+        if distance_remaining < self.tolerance:
+            # Check if we've not recorded a reached time yet, or if the delay has passed.
+            if (self.goal_reached_timestamp is None or 
+                (current_time - self.goal_reached_timestamp).nanoseconds * 1e-9 > self.goal_reached_delay):
+                self.get_logger().info("Goal reached!")
+                self.goal_reached_timestamp = current_time  # record when the goal was reached
+                self.current_goal_index += 1
+                self.new_goal_sent = False  # Allow the next goal to be published
+
 def main(args=None):
     rclpy.init(args=args)
     node = Test()
