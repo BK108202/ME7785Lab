@@ -3,15 +3,14 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from geometry_msgs.msg import PoseStamped
-from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
-# Note: You can also import NavigateToPose_FeedbackMessage if needed:
-# from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
+from nav2_msgs.action import NavigateToPose  # Use full action type for the client
+from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage  # For feedback subscription
 
-class test1(Node):
+class Test1(Node):
     def __init__(self):
         super().__init__('combined_nav_client')
-        # Create an action client for the NavigateToPose action
-        self._action_client = ActionClient(self, NavigateToPose_FeedbackMessage, '/navigate_to_pose')
+        # Create an action client using the full action type
+        self._action_client = ActionClient(self, NavigateToPose, '/navigate_to_pose')
         
         # List of waypoints (x, y, z)
         self.waypoints = [
@@ -22,7 +21,7 @@ class test1(Node):
         self.current_goal_index = 0
         self.tolerance = 0.05  # meters (for reference if using feedback)
         
-        # (Optional) Subscribe to the feedback topic to log feedback (similar to RViz)
+        # Subscribe to the feedback topic (this receives the same info as RViz’s "Feedback: reached")
         self.create_subscription(
             NavigateToPose_FeedbackMessage,
             '/navigate_to_pose/_action/feedback',
@@ -59,8 +58,8 @@ class test1(Node):
         self.send_goal_timer.cancel()
 
     def send_goal(self, pose: PoseStamped):
-        # Populate the NavigateToPose goal message
-        goal_msg = NavigateToPose_FeedbackMessage.Goal()
+        # Populate the NavigateToPose goal message using the correct action type
+        goal_msg = NavigateToPose.Goal()
         goal_msg.pose = pose
         
         # Wait for the action server to be available before sending the goal
@@ -109,7 +108,7 @@ class test1(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = test1()
+    node = Test1()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
