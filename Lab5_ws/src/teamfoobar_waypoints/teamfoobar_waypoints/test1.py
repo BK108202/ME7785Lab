@@ -11,7 +11,7 @@ class test1(Node):
     def __init__(self):
         super().__init__('combined_nav_client')
         # Create an action client for the NavigateToPose action
-        self._action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
+        self._action_client = ActionClient(self, NavigateToPose_FeedbackMessage, '/navigate_to_pose')
         
         # List of waypoints (x, y, z)
         self.waypoints = [
@@ -60,7 +60,7 @@ class test1(Node):
 
     def send_goal(self, pose: PoseStamped):
         # Populate the NavigateToPose goal message
-        goal_msg = NavigateToPose.Goal()
+        goal_msg = NavigateToPose_FeedbackMessage.Goal()
         goal_msg.pose = pose
         
         # Wait for the action server to be available before sending the goal

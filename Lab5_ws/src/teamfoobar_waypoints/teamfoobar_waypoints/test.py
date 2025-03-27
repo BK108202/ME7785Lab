@@ -67,6 +67,7 @@ class Test(Node):
             return
 
         distance_remaining = msg.feedback.distance_remaining
+        self.get_logger().info(f"Distance remaining: {distance_remaining:.2f} m")
 
         # If the distance remaining is below the tolerance, consider the goal reached
         if self.current_goal_index < len(self.waypoints) and distance_remaining < self.tolerance:
