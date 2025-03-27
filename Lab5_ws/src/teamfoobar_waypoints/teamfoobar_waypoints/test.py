@@ -74,8 +74,6 @@ class Test(Node):
             self.current_goal_index += 1
             self.new_goal_sent = False  # Allow the next goal to be published
         
-        self.get_logger().info(f"Distance remaining: {distance_remaining:.2f} m")
-
 def main(args=None):
     rclpy.init(args=args)
     node = Test()
