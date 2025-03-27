@@ -60,6 +60,7 @@ class test(Node):
             self.get_logger().info("Goal reached!")
             self.current_goal_index += 1
             self.new_goal_sent = False  # Reset flag for the next goal
+            self.timer_callback()
 
 def main(args=None):
     rclpy.init(args=args)
