@@ -17,9 +17,9 @@ class test(Node):
         self.tolerance = 0.01  # meters
         self.timer = self.create_timer(1.0, self.timer_callback)
         self.waypoints = [
-            (1.4, 2.1, 0.0),
-            (3.2, 1.2, 0.0),
-            (4.9, 2.0, 0.0)
+            (0.2, 1.7, 0.0),
+            (2.6, 1.7, 0.0),
+            (4.5, 0.2, 0.0)
         ]
         self.current_goal_index = 0
         self.new_goal_sent = False  # Flag to ignore initial feedback
