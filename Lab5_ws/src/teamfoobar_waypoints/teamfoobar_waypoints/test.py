@@ -3,11 +3,12 @@ from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
 
-class test(Node):
+class Test(Node):
     def __init__(self):
         super().__init__('test')
-        # Create a publisher for the PoseStamped message on the '/goal_pose' topic
+        # Publisher for PoseStamped messages on '/goal_pose'
         self.publisher_ = self.create_publisher(PoseStamped, '/goal_pose', 10)
+        # Subscribe to navigation feedback messages
         self.subscription = self.create_subscription(
             NavigateToPose_FeedbackMessage,
             '/navigate_to_pose/_action/feedback',
@@ -22,7 +23,11 @@ class test(Node):
             (4.5, 0.2, 0.0)
         ]
         self.current_goal_index = 0
-        self.new_goal_sent = False  # Flag to ignore initial feedback
+        self.new_goal_sent = False  # Flag to indicate a new goal was just sent
+        
+        # Time delay for feedback processing after a new goal
+        self.last_goal_time = self.get_clock().now()
+        self.min_feedback_delay = 2.0  # seconds
 
     def timer_callback(self):
         if self.current_goal_index < len(self.waypoints):
@@ -41,30 +46,39 @@ class test(Node):
             self.publisher_.publish(msg)
             self.get_logger().info(f"Published goal_pose: {msg.pose}")
             self.new_goal_sent = True  # Mark that a new goal was sent
+            self.last_goal_time = self.get_clock().now()  # Update timestamp
         else:
             self.get_logger().info("All waypoints have been published.")
-            # Optionally, stop the timer if no more goals need publishing.
+            # Optionally, you could cancel the timer here:
             # self.timer.cancel()
 
     def feedback_callback(self, msg):
+        current_time = self.get_clock().now()
+        elapsed_time = (current_time - self.last_goal_time).nanoseconds * 1e-9  # seconds
+        
+        # Wait a minimum period before processing feedback for the new goal
+        if elapsed_time < self.min_feedback_delay:
+            self.get_logger().info("Waiting for the robot to start moving. Ignoring feedback.")
+            return
+
         distance_remaining = msg.feedback.distance_remaining
         
-        # Check if we're still waiting for the first valid feedback after a new goal
+        # Ignore an initial 0.0 feedback if a new goal was just sent
         if self.new_goal_sent and distance_remaining == 0.0:
             self.get_logger().info("Ignoring initial 0.0 feedback.")
             return
         
         self.get_logger().info(f"Distance remaining: {distance_remaining:.2f} m")
         
+        # Check if the current goal has been reached
         if self.current_goal_index < len(self.waypoints) and distance_remaining < self.tolerance:
             self.get_logger().info("Goal reached!")
             self.current_goal_index += 1
             self.new_goal_sent = False  # Reset flag for the next goal
-            self.timer_callback()
 
 def main(args=None):
     rclpy.init(args=args)
-    node = test()
+    node = Test()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
