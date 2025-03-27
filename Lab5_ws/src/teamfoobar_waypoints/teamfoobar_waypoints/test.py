@@ -1,14 +1,15 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
-from nav2_msgs.action import NavigateToPose  # Use the proper import for the action
+from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
 
-class WaypointPublisher(Node):
+class test(Node):
     def __init__(self):
-        super().__init__('waypoint_publisher')
+        super().__init__('test')
+        # Create a publisher for the PoseStamped message on the '/goal_pose' topic
         self.publisher_ = self.create_publisher(PoseStamped, '/goal_pose', 10)
         self.subscription = self.create_subscription(
-            NavigateToPose.FeedbackMessage,
+            NavigateToPose_FeedbackMessage,
             '/navigate_to_pose/_action/feedback',
             self.feedback_callback,
             10
