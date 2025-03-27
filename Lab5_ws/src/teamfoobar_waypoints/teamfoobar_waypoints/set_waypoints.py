@@ -6,7 +6,7 @@ import math
 class setwaypoints(Node):
     def __init__(self):
         super().__init__('set_waypoints')
-        self.goal_pub = self.create_publisher(PoseStamped, '/goal_pose', 10)
+        self.goal_pub = self.create_publisher(PoseStamped, '/navigate_to_pose', 10)
         self.amcl_subscriber = self.create_subscription(
             PoseWithCovarianceStamped,
             '/amcl_pose',
