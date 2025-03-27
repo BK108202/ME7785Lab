@@ -2,6 +2,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from nav2_msgs.action import NavigateToPose
+from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage  # Imported as requested
 from geometry_msgs.msg import PoseStamped
 
 class NavigationActionClient(Node):
@@ -19,8 +20,9 @@ class NavigationActionClient(Node):
         goal_msg = NavigateToPose.Goal()
         goal_msg.pose = pose
         self.get_logger().info(f"Sending goal: {pose.pose}")
-        # Wait for the action server to be available
+        # Wait until the action server is available.
         self._action_client.wait_for_server()
+        # Send the goal asynchronously with a feedback callback.
         self._send_goal_future = self._action_client.send_goal_async(
             goal_msg, feedback_callback=self.feedback_callback
         )
@@ -35,9 +37,9 @@ class NavigationActionClient(Node):
         self._get_result_future = goal_handle.get_result_async()
         self._get_result_future.add_done_callback(self.get_result_callback)
 
-    def feedback_callback(self, feedback_msg):
+    def feedback_callback(self, feedback_msg: NavigateToPose_FeedbackMessage):
+        # The feedback_msg contains a 'feedback' field with navigation feedback details.
         feedback = feedback_msg.feedback
-        # Print feedback information (distance_remaining is specific to NavigateToPose)
         self.get_logger().info(f"Distance remaining: {feedback.distance_remaining:.2f} m")
 
     def get_result_callback(self, future):
@@ -69,9 +71,10 @@ class NavigationActionClient(Node):
 def main(args=None):
     rclpy.init(args=args)
     action_client = NavigationActionClient()
-    # Start by sending the first goal
+    # Send the first goal to kick off the sequence.
     action_client.send_next_goal()
     rclpy.spin(action_client)
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
