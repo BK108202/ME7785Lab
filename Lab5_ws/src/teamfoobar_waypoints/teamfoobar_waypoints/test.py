@@ -19,11 +19,18 @@ class test(Node):
         timer_period = 1.0  # seconds
         self.timer = self.create_timer(timer_period, self.timer_callback)
         
+        # self.waypoints = [
+        #     (2.6, 0.38, 0.0),
+        #     (2.1, 0.91, 0.0),
+        #     (2.9, 1.4, 0.0)
+        # ]
+
         self.waypoints = [
-            (2.6, 0.38, 0.0),
-            (2.1, 0.91, 0.0),
-            (2.9, 1.4, 0.0)
+            (1.4, 2.1, 0.0),
+            (3.2, 1.2, 0.0),
+            (4.9, 2.0, 0.0)
         ]
+
         self.current_goal_index = 0
 
     def timer_callback(self):
