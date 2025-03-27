@@ -24,7 +24,7 @@ class test1(Node):
         
         # (Optional) Subscribe to the feedback topic to log feedback (similar to RViz)
         self.create_subscription(
-            NavigateToPose_FeedbackMessage
+            NavigateToPose_FeedbackMessage,
             '/navigate_to_pose/_action/feedback',
             self.feedback_callback,
             10
