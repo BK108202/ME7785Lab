@@ -14,7 +14,7 @@ class test(Node):
             self.feedback_callback,
             10
         )
-        self.tolerance = 0.05  # meters
+        self.tolerance = 0.01  # meters
         self.timer = self.create_timer(1.0, self.timer_callback)
         self.waypoints = [
             (1.4, 2.1, 0.0),
