@@ -3,7 +3,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from geometry_msgs.msg import PoseStamped
-from nav2_msgs.action import NavigateToPose
+from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
 # Note: You can also import NavigateToPose_FeedbackMessage if needed:
 # from nav2_msgs.action._navigate_to_pose import NavigateToPose_FeedbackMessage
 
@@ -24,7 +24,7 @@ class test1(Node):
         
         # (Optional) Subscribe to the feedback topic to log feedback (similar to RViz)
         self.create_subscription(
-            NavigateToPose.FeedbackMessage,
+            NavigateToPose_FeedbackMessage
             '/navigate_to_pose/_action/feedback',
             self.feedback_callback,
             10
