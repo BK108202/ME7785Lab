@@ -26,9 +26,9 @@ def initialize_model(model_path=None):
     # For example, if you saved your model using pickle or a deep learning framework,
     # load it and return the model object.
     
-    model = None
+    model = cv2.ml.KNearest_load(model_path)
 
-    raise NotImplementedError("initialize_model() is not implemented. Please implement this function.")
+    # raise NotImplementedError("initialize_model() is not implemented. Please implement this function.")
 
     return model
 
@@ -49,9 +49,18 @@ def predict(model, image):
     # TODO: Implement your model's prediction logic here.
     # The function should return an integer corresponding to the predicted class.
     
-    prediction = None
+    resized_img = cv2.resize(image, (25, 33))
     
-    raise NotImplementedError("predict() is not implemented. Please implement this function.")
+    # Flatten the image into a 1D vector and convert to float32.
+    sample = resized_img.flatten().reshape(1, -1)
+    sample = sample.astype(np.float32)
+    
+    # Use the trained KNN model to predict the label using 3 neighbors.
+    ret, results, neighbours, dists = model.findNearest(sample, 3)
+    prediction = int(ret)
+    
+    
+    # raise NotImplementedError("predict() is not implemented. Please implement this function.")
     
     return prediction
 
