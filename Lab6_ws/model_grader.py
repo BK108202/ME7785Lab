@@ -37,31 +37,38 @@ def predict(model, image):
     Run inference on a single image using your model.
     You MUST modify this function to perform prediction.
     DO NOT change the function signature.
-    
+
     Args:
         model: The model object returned by initialize_model().
         image: The input image (as a NumPy array) to classify.
-    
+
     Returns:
         int: The predicted class label.
     """
 
-    # TODO: Implement your model's prediction logic here.
-    # The function should return an integer corresponding to the predicted class.
-    
+    # Resize the image to match training dimensions
     resized_img = cv2.resize(image, (25, 33))
-    
-    # Flatten the image into a 1D vector and convert to float32.
-    sample = resized_img.flatten().reshape(1, -1)
-    sample = sample.astype(np.float32)
-    
-    # Use the trained KNN model to predict the label using 3 neighbors.
+
+    # Normalize the image to [0,1]
+    normalized_img = resized_img / 255.0
+
+    # Compute edge features using Canny
+    edges = cv2.Canny((normalized_img * 255).astype(np.uint8), 100, 200)
+    edges_normalized = edges.astype(np.float32) / 255.0
+
+    # Flatten and combine the image and edge features
+    features_img = normalized_img.flatten()          # 25*33*3 elements
+    features_edges = edges_normalized.flatten()      # 25*33 elements
+
+    combined_features = np.concatenate((features_img, features_edges))
+
+    # Reshape combined features to match KNN input dimensions (1 sample x N features)
+    sample = combined_features.reshape(1, -1).astype(np.float32)
+
+    # Use the trained KNN model to predict the label using 3 neighbors
     ret, results, neighbours, dists = model.findNearest(sample, 3)
     prediction = int(ret)
-    
-    
-    # raise NotImplementedError("predict() is not implemented. Please implement this function.")
-    
+
     return prediction
 
 # ------------------------------------------------------------------------------
