@@ -6,6 +6,7 @@ import math
 import pickle
 import numpy as np
 import random
+from preprocessing import preprocess_image
 
 def check_split_value_range(val):
     try:
@@ -53,129 +54,54 @@ def load_and_split_data(data_path, split_ratio):
     return train_lines, test_lines
 
 def train_model(data_path, train_lines, image_type, model_filename, save_model):
-    """
-    Loads the images from the training set and uses them to create a KNN model.
-    The images and labels must be in the given directory.
-
-    Args:
-        data_path (str): Path to the dataset.
-        train_lines (tuple): Tuple of the training data containing (image_number, true_label)
-        image_type (str): Image extension to load (e.g. .png, .jpg, .jpeg)
-        model_filename (str): Filename for the saved model.
-        save_model (bool): Boolean flag to determine if the model should be saved.
-
-    Returns:
-        knn (knn_model_object): The KNN model.
-    """
-
-    # Add data augmentation and feature extraction
-    train_images = []  # List to store combined features for each image
-    for i in range(len(train_lines)):
-        # Load the image
-        img = cv2.imread(data_path + train_lines[i][0] + image_type)
-    
-        # Resize the image to target dimensions (25x33)
-        resized_img = cv2.resize(img, (25, 33))
-    
-        # Normalize the image (convert pixel values to [0,1])
-        normalized_img = resized_img / 255.0
-    
-        # Compute edge features using Canny:
-        # Convert normalized image back to 8-bit for Canny
-        edges = cv2.Canny((normalized_img * 255).astype(np.uint8), 100, 200)
-        # Normalize the edge image (optional, for consistency)
-        edges_normalized = edges.astype(np.float32) / 255.0
-    
-        # Flatten the normalized image and the edge features
-        features_img = normalized_img.flatten()        # Size: 25*33*3
-        features_edges = edges_normalized.flatten()      # Size: 25*33
-    
-        # Combine the features into one vector
-        combined_features = np.concatenate((features_img, features_edges))
-    
-        # Append the combined feature vector to our list
+    train_images = []
+    for line in train_lines:
+        img = cv2.imread(data_path + line[0] + image_type)
+        combined_features = preprocess_image(img)
         train_images.append(combined_features)
     
-    # Convert the list of combined features into a NumPy array with type float32.
     train_data = np.array(train_images, dtype=np.float32)
+    train_labels = np.array([np.int32(line[1]) for line in train_lines])
     
-    # Read in training labels
-    train_labels = np.array([np.int32(train_lines[i][1]) for i in range(len(train_lines))])
-    
-    ### Train classifier using KNN
     knn = cv2.ml.KNearest_create()
     knn.train(train_data, cv2.ml.ROW_SAMPLE, train_labels)
     
     print("KNN model created!")
-    
     if save_model:
-        # Save the trained model as an XML file
         knn.save(model_filename + '.xml')
         print(f"KNN model saved to {model_filename}.xml")
     
     return knn
 
 def test_model(data_path, test_lines, image_type, knn_model, knn_value, show_img):
-    """
-    Loads the images and tests the provided KNN model prediction with the dataset label.
-    The images and labels must be in the given directory.
-    
-    Args:
-        data_path (str): Path to the dataset.
-        test_lines (tuple): Tuple of the testing data containing (image_number, true_label)
-        image_type (str): Image extension to load (e.g. .png, .jpg, .jpeg)
-        knn_model (model object): The knn model
-        knn_value (int): The number of KNN neighbors to consider when classifying
-        show_img: A boolean whether to show images as they are processed or not
-    """
-    
     if show_img:
-        Title_images = 'Original Image'
-        Title_resized = 'Image Resized'
-        cv2.namedWindow(Title_images, cv2.WINDOW_AUTOSIZE)
+        cv2.namedWindow('Original Image', cv2.WINDOW_AUTOSIZE)
     
     correct = 0.0
     confusion_matrix = np.zeros((6, 6))
     k = knn_value
     
-    for i in range(len(test_lines)):
-        original_img = cv2.imread(data_path + test_lines[i][0] + image_type)
-        # Resize to target dimensions
-        resized_img = cv2.resize(original_img, (25, 33))
-        
+    for line in test_lines:
+        img = cv2.imread(data_path + line[0] + image_type)
         if show_img:
-            cv2.imshow(Title_images, original_img)
-            cv2.imshow(Title_resized, resized_img)
+            cv2.imshow('Original Image', img)
             key = cv2.waitKey()
             if key == 27:  # Esc key to stop
                 break
         
-        # Normalize the image
-        normalized_img = resized_img / 255.0
-        
-        # Compute edge features using Canny:
-        edges = cv2.Canny((normalized_img * 255).astype(np.uint8), 100, 200)
-        edges_normalized = edges.astype(np.float32) / 255.0
-        
-        # Flatten and combine features (same as in train_model)
-        features_img = normalized_img.flatten()        # Size: 25*33*3
-        features_edges = edges_normalized.flatten()      # Size: 25*33
-        combined_features = np.concatenate((features_img, features_edges))
-        
-        # Reshape to a 2D array with one sample
+        combined_features = preprocess_image(img)
         test_sample = combined_features.reshape(1, -1).astype(np.float32)
-        
-        test_label = np.int32(test_lines[i][1])
+        test_label = np.int32(line[1])
         
         ret, results, neighbours, dist = knn_model.findNearest(test_sample, k)
         
         if test_label == ret:
-            print(f"{test_lines[i][0]} Correct, {ret}")
+            print(f"{line[0]} Correct, {ret}")
             correct += 1
             confusion_matrix[np.int32(ret)][np.int32(ret)] += 1
         else:
             confusion_matrix[test_label][np.int32(ret)] += 1
-            print(f"{test_lines[i][0]} Wrong, {test_label} classified as {ret}")
+            print(f"{line[0]} Wrong, {test_label} classified as {ret}")
             print(f"\tneighbours: {neighbours}")
             print(f"\tdistances: {dist}")
     
