@@ -5,6 +5,7 @@ import argparse
 import csv
 import cv2
 import numpy as np
+from preprocessing import preprocess_image
 
 # ------------------------------------------------------------------------------
 #                  DO NOT MODIFY FUNCTION NAMES OR ARGUMENTS
@@ -25,7 +26,7 @@ def initialize_model(model_path=None):
     # TODO: Load your trained model here.
     # For example, if you saved your model using pickle or a deep learning framework,
     # load it and return the model object.
-    
+
     model = cv2.ml.KNearest_load(model_path)
 
     # raise NotImplementedError("initialize_model() is not implemented. Please implement this function.")
@@ -46,29 +47,14 @@ def predict(model, image):
         int: The predicted class label.
     """
 
-    # Resize the image to match training dimensions
-    resized_img = cv2.resize(image, (25, 33))
-
-    # Normalize the image to [0,1]
-    normalized_img = resized_img / 255.0
-
-    # Compute edge features using Canny
-    edges = cv2.Canny((normalized_img * 255).astype(np.uint8), 100, 200)
-    edges_normalized = edges.astype(np.float32) / 255.0
-
-    # Flatten and combine the image and edge features
-    features_img = normalized_img.flatten()          # 25*33*3 elements
-    features_edges = edges_normalized.flatten()      # 25*33 elements
-
-    combined_features = np.concatenate((features_img, features_edges))
-
-    # Reshape combined features to match KNN input dimensions (1 sample x N features)
+    combined_features = preprocess_image(image)
+    
+    # Reshape for KNN input dimensions (1 sample x N features)
     sample = combined_features.reshape(1, -1).astype(np.float32)
-
-    # Use the trained KNN model to predict the label using 3 neighbors
+    
+    # Predict using 3 neighbors
     ret, results, neighbours, dists = model.findNearest(sample, 3)
     prediction = int(ret)
-
     return prediction
 
 # ------------------------------------------------------------------------------
