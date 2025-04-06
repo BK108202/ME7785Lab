@@ -46,16 +46,23 @@ def predict(model, image):
     Returns:
         int: The predicted class label.
     """
+    feats = preprocess_image(image)         # 2D edges
+    feats = feats.flatten()                 # → shape (1024,)
+    sample = feats.reshape(1, -1).astype(np.float32)
+    print(">>> [PREDICT] sample.shape =", sample.shape, "dtype=", sample.dtype)
+    ret, _, _, _ = model.findNearest(sample, 3)
+    return int(ret)
 
-    combined_features = preprocess_image(image)
+    # combined_features = preprocess_image(image).flatten()
     
-    # Reshape for KNN input dimensions (1 sample x N features)
-    sample = combined_features.reshape(1, -1).astype(np.float32)
+    # # Since preprocess_image returns a 2D image (edges), flatten it here
+    # sample = combined_features.reshape(1, -1).astype(np.float32)
     
-    # Predict using 3 neighbors
-    ret, results, neighbours, dists = model.findNearest(sample, 3)
-    prediction = int(ret)
-    return prediction
+    # ret, results, neighbours, dists = model.findNearest(sample, 3)
+    # prediction = int(ret)
+
+    # return prediction
+
 
 # ------------------------------------------------------------------------------
 #                      DO NOT MODIFY ANY CODE BELOW THIS LINE

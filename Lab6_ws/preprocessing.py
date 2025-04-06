@@ -2,43 +2,71 @@ import cv2
 import numpy as np
 from skimage.feature import hog
 
-def preprocess_image(img, target_size=(32, 32)):
-    """
-    Preprocess an image by:
-      1. Converting it to grayscale.
-      2. Resizing the image to a fixed target size.
-      3. Applying histogram equalization to enhance contrast.
-      4. Normalizing the pixel values.
-      5. Extracting HOG features from the normalized image.
-      
-    Args:
-        img (numpy.ndarray): Input image.
-        target_size (tuple): Target size to resize the image (width, height).
+def preprocess_image(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # Define contrast and brightness adjustments
+    alpha = 1.97  # Increase contrast by 10%
+    beta = -15    # Increase brightness by 1 
 
-    Returns:
-        numpy.ndarray: HOG feature vector.
-    """
-    # Convert to grayscale
-    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    
-    # Resize to target size (experiment with different sizes)
-    resized_img = cv2.resize(gray_img, target_size)
-    
-    # Apply histogram equalization to improve contrast
-    eq_img = cv2.equalizeHist(resized_img)
-    
-    # Normalize pixel values to [0, 1]
-    normalized_img = eq_img.astype(np.float32) / 255.0
+    # Apply the contrast and brightness adjustments
+    adjusted_gray = cv2.convertScaleAbs(gray, alpha=alpha, beta=beta)
+
+    # # Simple thresholding
+    # ret, thresh1 = cv2.threshold(adjusted_gray, 127, 255, cv2.THRESH_BINARY)
+
+    # (2) Threshold Adaptive
+    thresh2 = cv2.adaptiveThreshold(adjusted_gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)
+
+    # # Otsu's thresholding
+    # ret3, thresh3 = cv2.threshold(adjusted_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+
+    kernel = np.ones((3, 3), np.uint8)
+    opened = cv2.morphologyEx(thresh2, cv2.MORPH_OPEN, kernel, iterations=1)
+
+    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel, iterations=1)
+
+    updated_img = closed
+
+
+
+    ## Add Edge Detection Here
+    edges = cv2.Canny(updated_img, threshold1=50, threshold2=150)
+
+
+    ## (3) Find the min-area contour
+    # cnts = cv2.findContours(updated_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)[-2]
+    # cnts = sorted(cnts, key=cv2.contourArea)
+    # for cnt in cnts:
+    #     if cv2.contourArea(cnt) > 100:
+    #         break
+
+    # contours, _ = cv2.findContours(updated_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # min_area = 1000  # tweak this based on your image size
+    # filtered = np.zeros_like(closed)
+    # for cnt in contours:
+    #     if cv2.contourArea(cnt) > min_area:
+    #         cv2.drawContours(filtered, [cnt], -1, 255, -1)
+
+    # ## (4) Create mask and do bitwise-op
+    # # mask = np.zeros(img.shape[:2],np.uint8)
+    # # cv2.drawContours(mask, [cnt],-1, 255, -1)
+    # # dst = cv2.bitwise_and(img, img, mask=mask)
+
+    # isolated_arrow = cv2.bitwise_and(adjusted_gray, adjusted_gray, mask=filtered)
     
     # Extract HOG features with adjusted parameters
-    hog_features = hog(
-        normalized_img,
-        orientations=9,
-        pixels_per_cell=(8, 8),   # Experiment with (8,8) vs. (4,4)
-        cells_per_block=(2, 2),
-        block_norm='L2-Hys',
-        transform_sqrt=True,
-        feature_vector=True
-    )
+    # hog_features = hog(
+    #     edges,
+    #     orientations=9,
+    #     pixels_per_cell=(8, 8),   # Experiment with (8,8) vs. (4,4)
+    #     cells_per_block=(2, 2),
+    #     block_norm='L2-Hys',
+    #     transform_sqrt=True,
+    #     feature_vector=True
+    # )
     
-    return hog_features
+    return edges
+
+
+

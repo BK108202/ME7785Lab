@@ -57,9 +57,9 @@ def train_model(data_path, train_lines, image_type, model_filename, save_model):
     train_images = []
     for line in train_lines:
         img = cv2.imread(data_path + line[0] + image_type)
-        combined_features = preprocess_image(img)
+        combined_features = preprocess_image(img).flatten()
         train_images.append(combined_features)
-    
+
     train_data = np.array(train_images, dtype=np.float32)
     train_labels = np.array([np.int32(line[1]) for line in train_lines])
     
@@ -89,7 +89,7 @@ def test_model(data_path, test_lines, image_type, knn_model, knn_value, show_img
             if key == 27:  # Esc key to stop
                 break
         
-        combined_features = preprocess_image(img)
+        combined_features = preprocess_image(img).flatten()
         test_sample = combined_features.reshape(1, -1).astype(np.float32)
         test_label = np.int32(line[1])
         
