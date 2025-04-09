@@ -1,72 +1,49 @@
 import cv2
 import numpy as np
-from skimage.feature import hog
 
 def preprocess_image(img):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # Define contrast and brightness adjustments
-    alpha = 1.97  # Increase contrast by 10%
-    beta = -15    # Increase brightness by 1 
-
-    # Apply the contrast and brightness adjustments
-    adjusted_gray = cv2.convertScaleAbs(gray, alpha=alpha, beta=beta)
-
-    # # Simple thresholding
-    # ret, thresh1 = cv2.threshold(adjusted_gray, 127, 255, cv2.THRESH_BINARY)
-
-    # (2) Threshold Adaptive
-    thresh2 = cv2.adaptiveThreshold(adjusted_gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)
-
-    # # Otsu's thresholding
-    # ret3, thresh3 = cv2.threshold(adjusted_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-
-    kernel = np.ones((3, 3), np.uint8)
-    opened = cv2.morphologyEx(thresh2, cv2.MORPH_OPEN, kernel, iterations=1)
-
-    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel, iterations=1)
-
-    updated_img = closed
-
-
-
-    ## Add Edge Detection Here
-    edges = cv2.Canny(updated_img, threshold1=50, threshold2=150)
-
-
-    ## (3) Find the min-area contour
-    # cnts = cv2.findContours(updated_img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)[-2]
-    # cnts = sorted(cnts, key=cv2.contourArea)
-    # for cnt in cnts:
-    #     if cv2.contourArea(cnt) > 100:
-    #         break
-
-    # contours, _ = cv2.findContours(updated_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    # min_area = 1000  # tweak this based on your image size
-    # filtered = np.zeros_like(closed)
-    # for cnt in contours:
-    #     if cv2.contourArea(cnt) > min_area:
-    #         cv2.drawContours(filtered, [cnt], -1, 255, -1)
-
-    # ## (4) Create mask and do bitwise-op
-    # # mask = np.zeros(img.shape[:2],np.uint8)
-    # # cv2.drawContours(mask, [cnt],-1, 255, -1)
-    # # dst = cv2.bitwise_and(img, img, mask=mask)
-
-    # isolated_arrow = cv2.bitwise_and(adjusted_gray, adjusted_gray, mask=filtered)
+    """
+    Processes the image to extract the arrow using HSV color filtering.
+    First, red, green, and blue areas are isolated and combined. Then, 
+    the combined image is reprocessed to detect a black arrow, and finally 
+    the arrow is painted in a distinct color (green) on a black background.
+    """
+    # Convert the image to HSV
+    hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     
-    # Extract HOG features with adjusted parameters
-    # hog_features = hog(
-    #     edges,
-    #     orientations=9,
-    #     pixels_per_cell=(8, 8),   # Experiment with (8,8) vs. (4,4)
-    #     cells_per_block=(2, 2),
-    #     block_norm='L2-Hys',
-    #     transform_sqrt=True,
-    #     feature_vector=True
-    # )
+    # Define HSV ranges for red, green, and blue
+    lower_red   = np.array([0, 100, 100])
+    upper_red   = np.array([10, 255, 255])
+    lower_green = np.array([40, 100, 100])
+    upper_green = np.array([80, 255, 255])
+    lower_blue  = np.array([110, 100, 100])
+    upper_blue  = np.array([130, 255, 255])
     
-    return edges
-
-
-
+    # Create individual masks for red, green, and blue
+    red_mask   = cv2.inRange(hsv_image, lower_red, upper_red)
+    green_mask = cv2.inRange(hsv_image, lower_green, upper_green)
+    blue_mask  = cv2.inRange(hsv_image, lower_blue, upper_blue)
+    
+    # Combine the color masks
+    combined_mask = cv2.bitwise_or(red_mask, green_mask)
+    combined_mask = cv2.bitwise_or(combined_mask, blue_mask)
+    
+    # Apply the combined mask to the original image
+    masked_image = cv2.bitwise_and(img, img, mask=combined_mask)
+    
+    # Convert the masked image to HSV to detect the black arrow
+    hsv_masked = cv2.cvtColor(masked_image, cv2.COLOR_BGR2HSV)
+    
+    # Define an HSV range for "black" (adjust the upper V value if needed)
+    lower_black = np.array([0, 0, 0])
+    upper_black = np.array([180, 255, 40])
+    black_mask = cv2.inRange(hsv_masked, lower_black, upper_black)
+    
+    # Create a new, empty image (with the same size as the input)
+    arrow_colored = np.zeros_like(img)
+    
+    # Paint the detected black arrow in a distinct color (here, green)
+    arrow_color = (0, 255, 0)
+    arrow_colored[black_mask == 255] = arrow_color
+    
+    return arrow_colored

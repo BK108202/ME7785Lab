@@ -24,12 +24,17 @@ def predict(model, image):
     """
     Preprocess the input image and return the predicted class using the CNN.
     """
-    features = preprocess_image(image)
-    if features.ndim == 1:
-        features = np.expand_dims(features, axis=0)
-    predictions = model.predict(features)
-    predicted_class = np.argmax(predictions, axis=1)[0]
-    return int(predicted_class)
+    # features = preprocess_image(image)
+    # if features.ndim == 1:
+    #     features = np.expand_dims(features, axis=0)
+    # predictions = model.predict(features)
+    # predicted_class = np.argmax(predictions, axis=1)[0]
+    # return int(predicted_class)
+    combined_features = preprocess_image(img)
+    test_sample = combined_features.reshape(1, -1).astype(np.float32)
+    test_label = np.int32(line[1])
+        
+    ret, results, neighbours, dist = knn_model.findNearest(test_sample, k)
 
 
 # ------------------------------------------------------------------------------
