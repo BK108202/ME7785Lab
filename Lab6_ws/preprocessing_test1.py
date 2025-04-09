@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 # Load the original image
-image = cv2.imread('./Lab6_ws/2025S_imgs/031.png')
+image = cv2.imread('./Lab6_ws/2025S_imgs/187.png')
 if image is None:
     raise IOError("Image not found or incorrect path!")
 

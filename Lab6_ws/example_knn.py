@@ -6,7 +6,7 @@ import math
 import pickle
 import numpy as np
 import random
-from preprocessing import preprocess_image
+from preprocessing_test5 import preprocess_image
 
 def check_split_value_range(val):
     try:
@@ -57,7 +57,8 @@ def train_model(data_path, train_lines, image_type, model_filename, save_model):
     train_images = []
     for line in train_lines:
         img = cv2.imread(data_path + line[0] + image_type)
-        combined_features = preprocess_image(img).flatten()
+        processed_img = preprocess_image(img)
+        combined_features = processed_img
         train_images.append(combined_features)
 
     train_data = np.array(train_images, dtype=np.float32)
@@ -89,7 +90,7 @@ def test_model(data_path, test_lines, image_type, knn_model, knn_value, show_img
             if key == 27:  # Esc key to stop
                 break
         
-        combined_features = preprocess_image(img).flatten()
+        combined_features = preprocess_image(img)
         test_sample = combined_features.reshape(1, -1).astype(np.float32)
         test_label = np.int32(line[1])
         
@@ -121,6 +122,8 @@ def main():
 
 
     args = parser.parse_args()
+
+    random.seed(42)
 
     #Path to dataset directory from command line argument.
     dataset_path = args.data_path

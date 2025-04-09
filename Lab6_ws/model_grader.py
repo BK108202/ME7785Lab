@@ -5,9 +5,7 @@ import argparse
 import csv
 import cv2
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import load_model
-from example_cnn import preprocess_image
+from preprocessing_test5 import preprocess_image
 
 # ------------------------------------------------------------------------------
 #                  DO NOT MODIFY FUNCTION NAMES OR ARGUMENTS
@@ -15,26 +13,53 @@ from example_cnn import preprocess_image
 
 def initialize_model(model_path=None):
     """
-    Load the trained CNN model saved as an HDF5 (.h5) file.
+    Initialize and return your trained model.
+    You MUST modify this function to load and/or construct your model.
+    DO NOT change the function name or its input/output.
+    
+    Args:
+        model_path: The path to your pretrained model file (if one is needed).
+    Returns:
+        model: Your trained model.
     """
-    model = load_model(model_path)
+
+    # TODO: Load your trained model here.
+    # For example, if you saved your model using pickle or a deep learning framework,
+    # load it and return the model object.
+
+    model = cv2.ml.KNearest_load(model_path)
+
+    # raise NotImplementedError("initialize_model() is not implemented. Please implement this function.")
+
     return model
 
 def predict(model, image):
     """
-    Preprocess the input image and return the predicted class using the CNN.
+    Run inference on a single image using your model.
+    You MUST modify this function to perform prediction.
+    DO NOT change the function signature.
+
+    Args:
+        model: The model object returned by initialize_model().
+        image: The input image (as a NumPy array) to classify.
+
+    Returns:
+        int: The predicted class label.
     """
-    # features = preprocess_image(image)
-    # if features.ndim == 1:
-    #     features = np.expand_dims(features, axis=0)
-    # predictions = model.predict(features)
-    # predicted_class = np.argmax(predictions, axis=1)[0]
-    # return int(predicted_class)
-    combined_features = preprocess_image(img)
-    test_sample = combined_features.reshape(1, -1).astype(np.float32)
-    test_label = np.int32(line[1])
-        
-    ret, results, neighbours, dist = knn_model.findNearest(test_sample, k)
+    feats = preprocess_image(image)         # 2D edges
+    sample = feats.reshape(1, -1).astype(np.float32)
+    ret, _, _, _ = model.findNearest(sample, 3)
+    return int(ret)
+
+    # combined_features = preprocess_image(image).flatten()
+    
+    # # Since preprocess_image returns a 2D image (edges), flatten it here
+    # sample = combined_features.reshape(1, -1).astype(np.float32)
+    
+    # ret, results, neighbours, dists = model.findNearest(sample, 3)
+    # prediction = int(ret)
+
+    # return prediction
 
 
 # ------------------------------------------------------------------------------
