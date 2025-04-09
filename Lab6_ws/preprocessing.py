@@ -7,6 +7,8 @@ def preprocess_image(img):
     First, red, green, and blue areas are isolated and combined. Then, 
     the combined image is reprocessed to detect a black arrow, and finally 
     the arrow is painted in a distinct color (green) on a black background.
+    
+    The final step filters the result to only keep the largest green area.
     """
     # Convert the image to HSV
     hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -45,5 +47,41 @@ def preprocess_image(img):
     # Paint the detected black arrow in a distinct color (here, green)
     arrow_color = (0, 255, 0)
     arrow_colored[black_mask == 255] = arrow_color
+
+    # Keep only the largest green area (to avoid stray green pixels)
+    arrow_colored1 = keep_largest_green_area(arrow_colored)
     
-    return arrow_colored
+    return arrow_colored1
+
+def keep_largest_green_area(img):
+    """
+    Keeps only the largest green area in the image and sets the rest to black.
+    Assumes that the arrow is painted in green (BGR: (0,255,0)).
+    A small tolerance is added to account for minor variations.
+    """
+    # Define a tolerance range for green (adjust if needed)
+    # Here we assume the arrow color is near (0, 255, 0)
+    lower_green = np.array([0, 250, 0])
+    upper_green = np.array([0, 255, 0])
+    
+    # Create a binary mask where the green color is detected
+    green_mask = cv2.inRange(img, lower_green, upper_green)
+    
+    # Find contours in the green mask
+    contours, _ = cv2.findContours(green_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        # If no contours are found, return an all-black image.
+        return np.zeros_like(img)
+    
+    # Identify the largest contour by area (assumed to be the arrow)
+    largest_contour = max(contours, key=cv2.contourArea)
+    
+    # Create a mask for the largest green region only
+    largest_mask = np.zeros_like(green_mask)
+    cv2.drawContours(largest_mask, [largest_contour], -1, 255, thickness=cv2.FILLED)
+    
+    # Create the result image: copy over the green pixels
+    result = np.zeros_like(img)
+    result[largest_mask == 255] = img[largest_mask == 255]
+    
+    return result
