@@ -13,7 +13,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
     
     # Generate requirements.txt in temp directory
     subprocess.run(
-        ['python3', '-m', 'pipreqs.pipreqs', '--encoding=utf-8', tmpdir],
+        ['python', '-m', 'pipreqs.pipreqs', '--encoding=utf-8', tmpdir],
         check=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT
@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
         print("Generated requirements.txt from root-level files")
 
 # Step 2: Get Python version
-python_version = subprocess.check_output(['python3', '--version']).decode().strip()
+python_version = subprocess.check_output(['python', '--version']).decode().strip()
 
 # Step 3: Add Python version as a comment to the top of requirements.txt
 requirements_file = 'requirements.txt'

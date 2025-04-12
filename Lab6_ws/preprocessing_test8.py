@@ -3,14 +3,14 @@ import numpy as np
 from skimage.feature import hog
 
 def preprocess_image(img, output_size=(50, 50)):
-    # Convert to HSV for color segmentation
+    # Convert to HSV
     hsv_image = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-    # Define boundaries for red, green, and blue in HSV space
+    # Define boundaries for red, green, and blue
     lower_red   = np.array([0, 100, 100])
     upper_red   = np.array([10, 255, 255])
-    lower_green = np.array([40, 100, 100])
-    upper_green = np.array([80, 255, 255])
+    lower_green = np.array([20, 0, 0])
+    upper_green = np.array([238, 120, 255])
     lower_blue  = np.array([110, 100, 100])
     upper_blue  = np.array([130, 255, 255])
 
@@ -19,14 +19,13 @@ def preprocess_image(img, output_size=(50, 50)):
     green_mask = cv2.inRange(hsv_image, lower_green, upper_green)
     blue_mask  = cv2.inRange(hsv_image, lower_blue, upper_blue)
 
-    # Combine the masks for red, green, and blue
+    # Combine the masks
     combined_mask = cv2.bitwise_or(red_mask, green_mask)
     combined_mask = cv2.bitwise_or(combined_mask, blue_mask)
 
-    # Find contours on the combined color mask
+    # Find contours
     contours, _ = cv2.findContours(combined_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Set initial values for detecting the best contour
     largest_area = 0
     best_box = None
 
@@ -40,61 +39,60 @@ def preprocess_image(img, output_size=(50, 50)):
                 largest_area = area
                 best_box = (x, y, w, h)
 
-    # Crop the arrow if detected; otherwise, work on the whole image.
     if best_box is not None:
         x, y, w, h = best_box
         cropped_arrow = img[y:y+h, x:x+w]
-        # Optional: Apply Canny edge detection (if needed)
-        _ = cv2.Canny(cropped_arrow, threshold1=50, threshold2=150)
+
+        # Optional: Canny edge detection on the cropped image (for comparison)
+        canny_edges = cv2.Canny(cropped_arrow, threshold1=50, threshold2=150)
+        
+        # Apply Sobel edge detection on the cropped image:
+        # Convert the cropped image to grayscale
+        gray_cropped = cv2.cvtColor(cropped_arrow, cv2.COLOR_BGR2GRAY)
+        # Compute gradients along the X and Y axis
+        sobel_x = cv2.Sobel(gray_cropped, cv2.CV_64F, 1, 0, ksize=3)
+        sobel_y = cv2.Sobel(gray_cropped, cv2.CV_64F, 0, 1, ksize=3)
+        # Compute the magnitude of the gradients
+        sobel_edges = cv2.magnitude(sobel_x, sobel_y)
+        # Convert the result to 8-bit format
+        sobel_edges = cv2.convertScaleAbs(sobel_edges)
+        
+        # For now, we keep using the original cropped image for resizing purposes.
         resized_img = cv2.resize(cropped_arrow, output_size)
     else:
+        # If no arrow is detected, resize the whole image to guarantee a fixed output size
         resized_img = cv2.resize(img, output_size)
-    
-    # ------------------------ New Gradient Extraction Step ------------------------
-    # Convert the resized (or cropped) image to grayscale
-    gray_resized = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
-    # Compute gradients in the x and y directions using the Sobel operator
-    grad_x = cv2.Sobel(gray_resized, cv2.CV_64F, 1, 0, ksize=3)
-    grad_y = cv2.Sobel(gray_resized, cv2.CV_64F, 0, 1, ksize=3)
-    # Compute gradient magnitude
-    gradient = cv2.magnitude(grad_x, grad_y)
-    # Convert gradient magnitude to 8-bit image for further processing
-    gradient = cv2.convertScaleAbs(gradient)
-    
-    # Optionally, compute a histogram of the gradient image (similar to color histograms)
-    histSize = [8]         # 8 bins for the histogram
-    hist_range = [0, 256]    # pixel value range
-    gradient_hist = cv2.calcHist([gradient], [0], None, histSize, hist_range)
-    gradient_hist = cv2.normalize(gradient_hist, gradient_hist).flatten()
-    # --------------------- End of Gradient Extraction Step ---------------------
 
-    # === Extract Color Histograms from the resized image ===
-    color_hist = []
+    # Using 8 bins per channel (adjustable) over the range [0, 256].
+    histSize = [8]
+    hist_range = [0, 256]
     channels = [0, 1, 2]
+    color_hist = []
     for ch in channels:
         hist = cv2.calcHist([resized_img], [ch], None, histSize, hist_range)
-        # Normalize the histogram for the channel
+        # Normalize the histogram
         hist = cv2.normalize(hist, hist).flatten()
         color_hist.append(hist)
     color_hist = np.concatenate(color_hist)
 
-    # === HOG Feature Extraction ===
-    # Convert the resized image to grayscale for HOG feature extraction
+    # Convert the resized image to grayscale for HOG computation
     gray_img = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
     eq_img = cv2.equalizeHist(gray_img)
+    
+    # Normalize pixel values to [0, 1]
     normalized_img = eq_img.astype(np.float32) / 255.0
-
+    
+    # Extract HOG features with adjusted parameters
     hog_features = hog(
         normalized_img,
         orientations=9,
-        pixels_per_cell=(8, 8),   # You can experiment with (8,8) vs. (4,4)
+        pixels_per_cell=(8, 8),
         cells_per_block=(2, 2),
         block_norm='L2-Hys',
         transform_sqrt=True,
         feature_vector=True
     )
 
-    # Combine color histograms with the new gradient histogram and HOG features into one feature vector.
-    combined_features = np.concatenate((color_hist, gradient_hist, hog_features))
+    combined_features = np.concatenate((color_hist, hog_features))
 
     return combined_features

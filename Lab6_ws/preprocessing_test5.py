@@ -10,7 +10,7 @@ def preprocess_image(img, output_size=(50, 50)):
     lower_red   = np.array([0, 100, 100])
     upper_red   = np.array([10, 255, 255])
     lower_green = np.array([20, 0, 0])
-    upper_green = np.array([238, 120, 255])
+    upper_green = np.array([90, 120, 255])
     lower_blue  = np.array([110, 100, 100])
     upper_blue  = np.array([130, 255, 255])
 
@@ -26,9 +26,6 @@ def preprocess_image(img, output_size=(50, 50)):
     # Find contours
     contours, _ = cv2.findContours(combined_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Optional: Edge detection on the combined mask (not used for cropping here)
-    _ = cv2.Canny(combined_mask, threshold1=25, threshold2=75)
-
     largest_area = 0
     best_box = None
 
@@ -36,7 +33,7 @@ def preprocess_image(img, output_size=(50, 50)):
         area = cv2.contourArea(c)
         perimeter = cv2.arcLength(c, True)
         # Filter out contours that are too small or too irregular
-        if area > 1000 and perimeter < 1000:
+        if area < 25000 and perimeter > 370:
             x, y, w, h = cv2.boundingRect(c)
             if area > largest_area:
                 largest_area = area
@@ -45,15 +42,11 @@ def preprocess_image(img, output_size=(50, 50)):
     if best_box is not None:
         x, y, w, h = best_box
         cropped_arrow = img[y:y+h, x:x+w]
-        # Optional: Edge detection on the cropped image
-        _ = cv2.Canny(cropped_arrow, threshold1=50, threshold2=150)
         resized_img = cv2.resize(cropped_arrow, output_size)
     else:
         # If no arrow is detected, resize the whole image to guarantee a fixed output size
         resized_img = cv2.resize(img, output_size)
 
-    # === Extract Color Histograms ===
-    # Compute a histogram for each color channel from the resized image.
     # Using 8 bins per channel (adjustable) over the range [0, 256].
     histSize = [8]
     hist_range = [0, 256]
@@ -65,7 +58,6 @@ def preprocess_image(img, output_size=(50, 50)):
         hist = cv2.normalize(hist, hist).flatten()
         color_hist.append(hist)
     color_hist = np.concatenate(color_hist)
-    # === End of Color Histograms Extraction ===
 
     # Convert the resized image to grayscale for HOG computation
     gray_img = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
@@ -79,14 +71,13 @@ def preprocess_image(img, output_size=(50, 50)):
     hog_features = hog(
         normalized_img,
         orientations=9,
-        pixels_per_cell=(8, 8),   # Experiment with (8,8) vs. (4,4)
+        pixels_per_cell=(8, 8),
         cells_per_block=(2, 2),
         block_norm='L2-Hys',
         transform_sqrt=True,
         feature_vector=True
     )
 
-    # Combine color histograms with HOG features into one feature vector.
     combined_features = np.concatenate((color_hist, hog_features))
 
     return combined_features
