@@ -1,0 +1,4 @@
+# SignClassification.srv
+sensor_msgs/CompressedImage image
+---
+int32 result
