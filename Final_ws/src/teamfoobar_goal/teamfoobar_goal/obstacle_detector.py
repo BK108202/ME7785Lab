@@ -1,17 +1,26 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Bool
 
 class ObstacleDetector(Node):
     def __init__(self):
         super().__init__('obstacle_detector')
+        # Updated LaserScan subscription to use SENSOR_DATA QoS:
+        
+        qos_profile_sensor = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
         self.subscription = self.create_subscription(
             LaserScan,
             '/scan',
             self.scan_callback,
-            10)
+            qos_profile_sensor)
         self.trigger_pub = self.create_publisher(Bool, '/trigger_sign', 10)
         self.distance_threshold = 0.5  # 50 cm
 

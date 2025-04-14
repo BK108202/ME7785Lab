@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, Pose2D, Point
@@ -11,12 +12,19 @@ import numpy as np
 class WaypointNavigator(Node):
     def __init__(self):
         super().__init__('waypoint_navigator')
+
+        qos_profile_sensor = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
         
         # Publishers and subscribers.
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.create_subscription(Odometry, '/odom', self.update_Odometry, 10)
         self.create_subscription(Int32, '/recognized_sign', self.sign_callback, 10)
-        self.create_subscription(LaserScan, '/scan', self.scan_callback, 10)
+        # Updated LaserScan subscription to use SENSOR_DATA QoS:
+        self.create_subscription(LaserScan, '/scan', self.scan_callback, qos_profile_sensor)
         
         # Variables for odometry.
         self.Init = True
@@ -147,9 +155,13 @@ class WaypointNavigator(Node):
             error_y = self.current_waypoint.y - self.globalPos.y
             distance_error = math.hypot(error_x, error_y)
             
+            # When waypoint is reached, reset sign and wall point to avoid repeated recalculations.
             if distance_error < 0.05:
                 self.get_logger().info("Waypoint reached.")
                 self.current_waypoint = None
+                # Resetting sign and wall point after the waypoint is reached.
+                self.recognized_sign = None
+                self.wall_point = None
                 self.stop_robot()
                 return
 
@@ -176,7 +188,7 @@ class WaypointNavigator(Node):
         cmd.linear.x = 0.0
         cmd.angular.z = 0.0
         self.cmd_pub.publish(cmd)
-
+    
 def main(args=None):
     rclpy.init(args=args)
     node = WaypointNavigator()

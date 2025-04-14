@@ -40,6 +40,7 @@ class SignRecognition(Node):
             hsv_image = cv2.cvtColor(self.latest_image, cv2.COLOR_BGR2HSV)
             features = self.preprocess_image(hsv_image)
             sample = features.reshape(1, -1).astype(np.float32)
+            k = 3
             ret, results, neighbours, dist = self.knn_model.findNearest(sample, k)
             prediction = int(ret)
             self.get_logger().info(f"Predicted sign: {prediction}")
@@ -53,7 +54,8 @@ class SignRecognition(Node):
             sign_msg = Int32()
             sign_msg.data = prediction
             self.sign_pub.publish(sign_msg)
-    def preprocess_image(img, output_size=(50, 50)):
+
+    def preprocess_image(self, img, output_size=(50, 50)):
         # Define boundaries for red, green, and blue
         lower_red   = np.array([0, 100, 100])
         upper_red   = np.array([10, 255, 255])
