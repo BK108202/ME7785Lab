@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, QoSPresetProfiles
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, Pose2D, Point
-from std_msgs.msg import Int32
+from std_msgs.msg import Int32, Bool
 import math
 import numpy as np
 
@@ -23,30 +23,32 @@ class WaypointNavigator(Node):
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.create_subscription(Odometry, '/odom', self.update_Odometry, 10)
         self.create_subscription(Int32, '/recognized_sign', self.sign_callback, 10)
-        # Updated LaserScan subscription to use SENSOR_DATA QoS:
         self.create_subscription(LaserScan, '/scan', self.scan_callback, qos_profile_sensor)
+        # NEW: Subscribe to the obstacle detector trigger.
+        self.create_subscription(Bool, '/trigger_sign', self.trigger_callback, 10)
         
         # Variables for odometry.
         self.Init = True
         self.Init_ang = 0.0
         self.globalAng = 0.0
-        # Use geometry_msgs/Point for positions.
-        self.Init_pos = Point()    # Initial position (x, y, z)
-        self.globalPos = Point()   # Global position computed relative to the initial pose
+        self.Init_pos = Point()   # initial position (x, y, z)
+        self.globalPos = Point()  # global position relative to the initial pose
         
         # Variables for sign recognition and waypoint control.
-        self.recognized_sign = None     # e.g., 1=right, 2=left, 3=back
-        self.current_waypoint = None    # Will be a Pose2D (position and orientation)
-        self.wall_point = None          # Tuple (x, y) for wall detected in global frame
-        self.waypoint_offset = 0.5      # 50 cm offset from the wall
+        self.recognized_sign = None  # e.g., 1=right, 2=left, 3=back/turn-around
+        self.current_waypoint = None # Will be a Pose2D (position and orientation)
+        self.wall_point = None       # Tuple (x, y) for wall detected in global frame
+        self.waypoint_offset = 0.5   # 50 cm offset from the wall
+
+        # NEW: Latest trigger state from obstacle detector.
+        self.trigger = False
         
         self.get_logger().info("Waypoint Navigator started.")
         self.timer = self.create_timer(0.1, self.timer_callback)
         
     def update_Odometry(self, Odom):
         """
-        Update the robot's global position and orientation.
-        The global position is calculated in a coordinate frame where the initial pose is (0,0).
+        Update the robot's global position and orientation relative to the initial pose.
         """
         position = Odom.pose.pose.position
         q = Odom.pose.pose.orientation
@@ -62,22 +64,31 @@ class WaypointNavigator(Node):
             self.Init_pos.y = position.y
             self.Init_pos.z = position.z
 
-        # Compute global position relative to the initial position.
+        # Update global position relative to the initial position.
         self.globalPos = Point()
         self.globalPos.x = position.x - self.Init_pos.x
         self.globalPos.y = position.y - self.Init_pos.y
         self.globalPos.z = position.z - self.Init_pos.z
         
-        # Compute global angle relative to the initial orientation.
+        # Update global angle relative to the initial orientation.
         self.globalAng = orientation - self.Init_ang
 
     def sign_callback(self, msg: Int32):
         """
-        Save the recognized sign from another node.
-        For example: 1=right, 2=left, 3=back/turn-around.
+        Save the recognized sign from the sign recognition node.
         """
         self.recognized_sign = msg.data
         self.get_logger().info(f"Received recognized sign: {self.recognized_sign}")
+
+    def trigger_callback(self, msg: Bool):
+        """
+        Update the trigger state from the obstacle detector.
+        When no obstacle is detected, trigger remains False.
+        """
+        self.trigger = msg.data
+        # Log only when an obstacle is detected.
+        if self.trigger:
+            self.get_logger().info("Obstacle trigger detected.")
 
     def scan_callback(self, msg: LaserScan):
         """
@@ -121,42 +132,49 @@ class WaypointNavigator(Node):
 
     def timer_callback(self):
         """
-        If a recognized sign and a wall point exist, compute a waypoint such that the robot 
-        will be positioned 50 cm from the wall. Then, use a proportional controller to drive 
-        toward that waypoint.
+        Decide on robot movement based on obstacle trigger and sign/wall data.
+        
+        - If no obstacle is triggered (self.trigger is False), command default forward motion.
+        - If an obstacle is detected (self.trigger True) and valid sign/wall data exist, compute a waypoint and drive toward it.
         """
-        if self.recognized_sign is None or self.wall_point is None:
-            # Default behavior: move forward slowly
+        # No obstacle trigger: move forward at a default speed.
+        if not self.trigger:
             cmd = Twist()
-            cmd.linear.x = 0.1  # default forward speed
+            cmd.linear.x = 0.1  # Default forward speed.
             cmd.angular.z = 0.0
             self.cmd_pub.publish(cmd)
-            self.get_logger().info("No sign detected. Moving forward by default.")
+            self.get_logger().info("No obstacle triggered. Moving forward by default.")
+            return
+
+        # When an obstacle is triggered, check for sign and wall information.
+        if self.recognized_sign is None or self.wall_point is None:
+            # If no sign is recognized (or no wall is computed), stop the robot.
+            self.get_logger().info("Obstacle triggered but no valid sign/wall data. Stopping robot.")
+            self.stop_robot()
             return
 
         # Compute the waypoint based on the wall point and desired offset.
-        if self.recognized_sign is not None and self.wall_point is not None:
-            wall_x, wall_y = self.wall_point
-            # Compute vector from wall to robot (in global frame).
-            dx = self.globalPos.x - wall_x
-            dy = self.globalPos.y - wall_y
-            d = math.hypot(dx, dy)
-            if d == 0:
-                self.get_logger().warn("Robot is exactly at the wall point; cannot compute offset.")
-                return
+        wall_x, wall_y = self.wall_point
+        # Compute vector from wall to robot (in global frame).
+        dx = self.globalPos.x - wall_x
+        dy = self.globalPos.y - wall_y
+        d = math.hypot(dx, dy)
+        if d == 0:
+            self.get_logger().warn("Robot is exactly at the wall point; cannot compute offset.")
+            return
 
-            # Normalize the vector and multiply by the desired offset (50 cm).
-            offset_x = (dx / d) * self.waypoint_offset
-            offset_y = (dy / d) * self.waypoint_offset
+        # Normalize the vector and multiply by the desired offset (50 cm).
+        offset_x = (dx / d) * self.waypoint_offset
+        offset_y = (dy / d) * self.waypoint_offset
 
-            # Compute waypoint: position on the line from the wall to the robot,
-            # exactly offset by 50 cm from the wall.
-            waypoint = Pose2D()
-            waypoint.x = wall_x + offset_x
-            waypoint.y = wall_y + offset_y
-            waypoint.theta = self.globalAng  # Optionally, adjust orientation as needed.
-            self.current_waypoint = waypoint
-            self.get_logger().info(f"Computed waypoint: ({waypoint.x:.2f}, {waypoint.y:.2f})")
+        # Compute waypoint: position along the line from the wall to the robot,
+        # offset by 50 cm from the wall.
+        waypoint = Pose2D()
+        waypoint.x = wall_x + offset_x
+        waypoint.y = wall_y + offset_y
+        waypoint.theta = self.globalAng  # Orientation remains aligned with current global angle.
+        self.current_waypoint = waypoint
+        self.get_logger().info(f"Computed waypoint: ({waypoint.x:.2f}, {waypoint.y:.2f})")
         
         # If a waypoint is set, drive toward it.
         if self.current_waypoint is not None:
@@ -168,7 +186,6 @@ class WaypointNavigator(Node):
             if distance_error < 0.05:
                 self.get_logger().info("Waypoint reached.")
                 self.current_waypoint = None
-                # Resetting sign and wall point after the waypoint is reached.
                 self.recognized_sign = None
                 self.wall_point = None
                 self.stop_robot()
@@ -192,7 +209,7 @@ class WaypointNavigator(Node):
             self.stop_robot()
 
     def stop_robot(self):
-        """Publish zero velocity to stop the robot."""
+        """Publish zero velocity command to stop the robot."""
         cmd = Twist()
         cmd.linear.x = 0.0
         cmd.angular.z = 0.0
