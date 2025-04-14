@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import LaserScan, Odometry
+from sensor_msgs.msg import LaserScan
+from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist, Pose2D, Point
 from std_msgs.msg import Int32
 import math
