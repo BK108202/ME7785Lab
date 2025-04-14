@@ -44,6 +44,9 @@ class SignRecognition(Node):
             # Convert image from BGR to HSV and preprocess.
             hsv_image = cv2.cvtColor(self.latest_image, cv2.COLOR_BGR2HSV)
             features = self.preprocess_image(hsv_image)
+            if features.size == 0:
+                self.get_logger().warn("No features extracted from image. Skipping classification.")
+                return
 
             # Debug: Check features properties.
             features = np.array(features)
