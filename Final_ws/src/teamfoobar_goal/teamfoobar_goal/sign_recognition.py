@@ -39,21 +39,31 @@ class SignRecognition(Node):
             # Convert image from BGR to HSV and preprocess.
             hsv_image = cv2.cvtColor(self.latest_image, cv2.COLOR_BGR2HSV)
             features = self.preprocess_image(hsv_image)
+            
+            # Ensure features is a numpy array and print its shape and type for debugging.
+            features = np.array(features)
+            self.get_logger().info(f"Features shape: {features.shape}, dtype: {features.dtype}")
+
+            # Reshape to a 2D array (one row) and convert to np.float32.
             sample = features.reshape(1, -1).astype(np.float32)
-            k = 3
+            self.get_logger().info(f"Sample shape: {sample.shape}, dtype: {sample.dtype}")
+            
+            # Define the number of neighbors (k).
+            k = 5
             ret, results, neighbours, dist = self.knn_model.findNearest(sample, k)
             prediction = int(ret)
             self.get_logger().info(f"Predicted sign: {prediction}")
-            
+
             # Ignore the sign '0' (go forward) to prevent accidental commands.
             if prediction == 0:
                 self.get_logger().info("Sign 0 recognized (go forward) - ignored to avoid accidental forward movement.")
                 return
 
-            # Publish the recognized sign (e.g., 1=right, 2=left, 3=stop/turn-around, 4=goal reached)
+            # Publish the recognized sign.
             sign_msg = Int32()
             sign_msg.data = prediction
             self.sign_pub.publish(sign_msg)
+
 
     def preprocess_image(self, img, output_size=(50, 50)):
         # Define boundaries for red, green, and blue
