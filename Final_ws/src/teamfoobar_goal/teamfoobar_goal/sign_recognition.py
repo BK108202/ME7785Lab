@@ -23,20 +23,19 @@ class SignRecognition(Node):
         self.knn_model = cv2.ml.KNearest_load('knn_model.xml')
         self.latest_image = None
 
-    def image_callback(self, msg: CompressedImage):
+    def image_callback(self, msg):
         try:
             cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
             self.latest_image = cv_image
 
-            # Display the image in a window.
+            # Display the image.
             cv2.imshow("Robot Camera", cv_image)
-            # Use waitKey with a small delay to allow the window to refresh.
             cv2.waitKey(1)
         except Exception as e:
             self.get_logger().error(f"Error converting image: {e}")
 
     def trigger_callback(self, msg: Bool):
-        msg.data = True
+        self.get_logger().info(f"Received trigger message: {msg.data}")
         if msg.data:
             if self.latest_image is None:
                 self.get_logger().warn("No image available for sign recognition.")
@@ -45,25 +44,34 @@ class SignRecognition(Node):
             # Convert image from BGR to HSV and preprocess.
             hsv_image = cv2.cvtColor(self.latest_image, cv2.COLOR_BGR2HSV)
             features = self.preprocess_image(hsv_image)
+
+            # Debug: Check features properties.
+            features = np.array(features)
+            self.get_logger().info(f"Features shape: {features.shape}, dtype: {features.dtype}")
+            
+            # Reshape and convert to float32.
             sample = features.reshape(1, -1).astype(np.float32)
-            # Define k for k-nearest neighbors.
+            self.get_logger().info(f"Sample shape: {sample.shape}, dtype: {sample.dtype}")
+
+            # Define the number of neighbors to use.
             k = 5
             ret, results, neighbours, dist = self.knn_model.findNearest(sample, k)
             prediction = int(ret)
             self.get_logger().info(f"Predicted sign: {prediction}")
             
-            # Ignore the sign '0' (go forward) to prevent accidental commands.
+            # Ignore sign 0 to avoid accidental forward command.
             if prediction == 0:
-                self.get_logger().info("Sign 0 recognized (go forward) - ignored to avoid accidental forward movement.")
+                self.get_logger().info("Sign 0 recognized (go forward) - ignored.")
                 return
 
             # Publish the recognized sign.
             sign_msg = Int32()
             sign_msg.data = prediction
             self.sign_pub.publish(sign_msg)
+            self.get_logger().info("Published recognized sign message.")
 
     def preprocess_image(self, img, output_size=(50, 50)):
-        # Define boundaries for red, green, and blue.
+        # Define color boundaries.
         lower_red   = np.array([0, 100, 100])
         upper_red   = np.array([10, 255, 255])
         lower_green = np.array([20, 0, 0])
@@ -71,25 +79,20 @@ class SignRecognition(Node):
         lower_blue  = np.array([110, 100, 100])
         upper_blue  = np.array([130, 255, 255])
 
-        # Create masks for each color
+        # Create masks for the colors.
         red_mask   = cv2.inRange(img, lower_red, upper_red)
         green_mask = cv2.inRange(img, lower_green, upper_green)
         blue_mask  = cv2.inRange(img, lower_blue, upper_blue)
-
-        # Combine the masks
         combined_mask = cv2.bitwise_or(red_mask, green_mask)
         combined_mask = cv2.bitwise_or(combined_mask, blue_mask)
 
-        # Find contours
+        # Find contours in the mask.
         contours, _ = cv2.findContours(combined_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
         largest_area = 0
         best_box = None
-
         for c in contours:
             area = cv2.contourArea(c)
             perimeter = cv2.arcLength(c, True)
-            # Filter out contours that are too small or too irregular.
             if area < 25000 and perimeter > 370:
                 x, y, w, h = cv2.boundingRect(c)
                 if area > largest_area:
@@ -101,28 +104,24 @@ class SignRecognition(Node):
             cropped_arrow = img[y:y+h, x:x+w]
             resized_img = cv2.resize(cropped_arrow, output_size)
         else:
-            # If no arrow is detected, resize the whole image.
+            # If no arrow is detected, resize the entire image.
             resized_img = cv2.resize(img, output_size)
 
-        # Using 8 bins per channel, adjust parameters as needed.
+        # Compute a color histogram.
         histSize = [8]
         hist_range = [0, 256]
         channels = [0, 1, 2]
         color_hist = []
         for ch in channels:
             hist = cv2.calcHist([resized_img], [ch], None, histSize, hist_range)
-            # Normalize the histogram.
             hist = cv2.normalize(hist, hist).flatten()
             color_hist.append(hist)
         color_hist = np.concatenate(color_hist)
 
-        # Convert to grayscale for HOG extraction.
+        # Convert image to grayscale, equalize, and normalize.
         gray_img = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
         eq_img = cv2.equalizeHist(gray_img)
-        
-        # Normalize pixel values to range [0, 1].
         normalized_img = eq_img.astype(np.float32) / 255.0
-        
         hog_features = hog(
             normalized_img,
             orientations=9,
@@ -143,7 +142,7 @@ def main(args=None):
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
-    cv2.destroyAllWindows()  # Clean up the OpenCV windows on exit.
+    cv2.destroyAllWindows()
     node.destroy_node()
     rclpy.shutdown()
 
