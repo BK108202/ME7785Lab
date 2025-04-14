@@ -36,6 +36,7 @@ class SignRecognition(Node):
             self.get_logger().error(f"Error converting image: {e}")
 
     def trigger_callback(self, msg: Bool):
+        msg.data = True
         if msg.data:
             if self.latest_image is None:
                 self.get_logger().warn("No image available for sign recognition.")
