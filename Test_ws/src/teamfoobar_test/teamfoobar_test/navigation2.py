@@ -1,7 +1,6 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage, LaserScan
-from rclpy.qos import qos_profile_sensor_data, qos_profile_sensor
 import cv2
 import numpy as np
 from geometry_msgs.msg import Twist
@@ -25,7 +24,7 @@ class navigation2(Node):
             LaserScan,
             '/scan',
             self.scan_callback,
-            qos_profile_sensor
+            10
         )
         
         # Camera subscriber for compressed images.
@@ -33,7 +32,7 @@ class navigation2(Node):
             CompressedImage,
             '/image_raw/compressed',
             self.image_callback,
-            qos_profile_sensor_data
+            10
         )
         
         # Publisher for movement commands.
