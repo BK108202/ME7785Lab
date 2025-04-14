@@ -125,6 +125,15 @@ class WaypointNavigator(Node):
         will be positioned 50 cm from the wall. Then, use a proportional controller to drive 
         toward that waypoint.
         """
+        if self.recognized_sign is None or self.wall_point is None:
+            # Default behavior: move forward slowly
+            cmd = Twist()
+            cmd.linear.x = 0.1  # default forward speed
+            cmd.angular.z = 0.0
+            self.cmd_pub.publish(cmd)
+            self.get_logger().info("No sign detected. Moving forward by default.")
+            return
+
         # Compute the waypoint based on the wall point and desired offset.
         if self.recognized_sign is not None and self.wall_point is not None:
             wall_x, wall_y = self.wall_point
