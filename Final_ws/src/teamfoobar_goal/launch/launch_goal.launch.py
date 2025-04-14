@@ -14,5 +14,10 @@ def generate_launch_description():
             package='teamfoobar_goal',
             executable='waypoint_navigator',
             name='waypoint_navigator'
+        ),
+        Node(
+            package='teamfoobar_goal',
+            executable='sign_recognition',
+            name='sign_recognition'
         )
     ])

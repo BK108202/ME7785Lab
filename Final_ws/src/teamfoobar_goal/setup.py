@@ -23,6 +23,7 @@ setup(
         'console_scripts': [
         'obstacle_detector = teamfoobar_goal.obstacle_detector:main',
         'waypoint_navigator = teamfoobar_goal.waypoint_navigator:main',
+        'sign_recognition = teamfoobar_goal.sign_recognition:main',
         ],
     },
 )
