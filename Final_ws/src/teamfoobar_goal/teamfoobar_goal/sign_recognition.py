@@ -22,6 +22,7 @@ class SignRecognition(Node):
         self.bridge = CvBridge()
         # Load the pre-trained KNN model.
         model_path = os.path.join(os.path.dirname(__file__), 'knn_model.xml')
+        self.get_logger().info(f"Loading KNN model from: {model_path}")
         self.knn_model = cv2.ml.KNearest_load(model_path)
         if self.knn_model.empty():
             self.get_logger().error("Failed to load the KNN model. Please check the knn_model.xml file.")
