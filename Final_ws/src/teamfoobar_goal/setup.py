@@ -6,10 +6,15 @@ setup(
     name=package_name,
     version='0.0.0',
     packages=find_packages(exclude=['test']),
+    include_package_data=True,  # Ensure package data specified in package_data is included.
+    package_data={
+        # This will include knn_model.xml from the teamfoobar_goal package directory.
+        package_name: ['knn_model.xml'],
+    },
     data_files=[
         ('share/ament_index/resource_index/packages',
-         ['resource/' + package_name]),
-        ('share/' + package_name, ['package.xml', 'knn_model.xml']),
+            ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', ['launch/launch_goal.launch.py']),
     ],
     install_requires=['setuptools'],
