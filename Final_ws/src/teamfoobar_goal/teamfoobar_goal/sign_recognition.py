@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 from skimage.feature import hog
 import os
+import importlib.resources
 
 class SignRecognition(Node):
     def __init__(self):
@@ -21,12 +22,18 @@ class SignRecognition(Node):
         
         self.bridge = CvBridge()
         # Load the pre-trained KNN model.
-        model_path = os.path.join(os.path.dirname(__file__), 'knn_model.xml')
-        self.get_logger().info(f"Loading KNN model from: {model_path}")
-        self.knn_model = cv2.ml.KNearest_load(model_path)
-        if self.knn_model.empty():
-            self.get_logger().error("Failed to load the KNN model. Please check the knn_model.xml file.")
-            return
+        # model_path = os.path.join(os.path.dirname(__file__), 'knn_model.xml')
+        # self.get_logger().info(f"Loading KNN model from: {model_path}")
+        # self.knn_model = cv2.ml.KNearest_load(model_path)
+        # if self.knn_model.empty():
+        #     self.get_logger().error("Failed to load the KNN model. Please check the knn_model.xml file.")
+        #     return
+        with importlib.resources.path('teamfoobar_goal', 'knn_model.xml') as model_path:
+            model_path = str(model_path)  # Convert Path object to string if needed.
+            self.get_logger().info(f"Loading KNN model from: {model_path}")
+            self.knn_model = cv2.ml.KNearest_load(model_path)
+            if self.knn_model.empty():
+                self.get_logger().error("Failed to load the KNN model. Please check knn_model.xml.")
 
         self.latest_image = None
 
