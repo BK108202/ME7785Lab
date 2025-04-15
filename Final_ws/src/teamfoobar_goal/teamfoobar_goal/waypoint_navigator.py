@@ -37,7 +37,7 @@ class WaypointNavigator(Node):
         self.recognized_sign = None   # from sign recognition (but used only to trigger turning)
         self.current_waypoint = None  # computed waypoint (Pose2D)
         self.wall_point = None        # computed wall point (global coordinates)
-        self.waypoint_offset = 0.5    # 50 cm offset from the wall
+        self.waypoint_offset = 0.45    # 50 cm offset from the wall
 
         # New variables for turning.
         self.turning = False          # Are we currently in a turning phase?
