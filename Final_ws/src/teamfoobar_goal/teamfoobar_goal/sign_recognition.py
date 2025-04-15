@@ -156,6 +156,7 @@ class SignRecognition(Node):
         )
 
         combined_features = np.concatenate((color_hist, hog_features))
+        self.get_logger().info("Finish image preprocessing")
         return combined_features
 
 def main(args=None):

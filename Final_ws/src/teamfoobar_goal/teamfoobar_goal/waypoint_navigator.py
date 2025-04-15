@@ -198,30 +198,39 @@ class WaypointNavigator(Node):
         self.get_logger().info(f"Computed waypoint: ({waypoint.x:.2f}, {waypoint.y:.2f})")
 
         # Drive toward the waypoint using proportional control.
+                # Calculate the error between the current position and the waypoint.
         error_x = self.current_waypoint.x - self.globalPos.x
         error_y = self.current_waypoint.y - self.globalPos.y
         distance_error = math.hypot(error_x, error_y)
-        
+
+        # When the waypoint is reached, reset and stop.
         if distance_error < 0.05:
-            self.get_logger().info("Waypoint reached. Ready for next sign command.")
+            self.get_logger().info("Waypoint reached. Ready for next command.")
             self.current_waypoint = None
-            self.wall_point = None  # Clear wall point so new laser scans update it.
+            self.wall_point = None
             self.stop_robot()
             return
 
+        # Calculate the desired heading towards the waypoint.
         desired_angle = math.atan2(error_y, error_x)
         angle_error = desired_angle - self.globalAng
         angle_error = math.atan2(math.sin(angle_error), math.cos(angle_error))
 
-        kp_linear = 1.0
-        kp_angular = 2.0
+        # --- Updated Gains for Longer Distance ---
+        # Increase the linear proportional gain and allow a higher max linear speed.
+        kp_linear = 1.2  # increased gain from 1.0 to 1.2 for a quicker response over long distances.
+        kp_angular = 2.5  # increased angular gain for more decisive corrections.
 
         cmd = Twist()
-        cmd.linear.x = min(kp_linear * distance_error, 0.2)
+        # Allow the robot to move faster (up to 0.3 m/s) if the error is high.
+        cmd.linear.x = min(kp_linear * distance_error, 0.3)
+        # Use a saturated angular command.
         cmd.angular.z = max(min(kp_angular * angle_error, 1.0), -1.0)
         self.cmd_pub.publish(cmd)
-        self.get_logger().info(f"Driving: distance_error = {distance_error:.2f}, angle_error = {angle_error:.2f}")
-
+        self.get_logger().info(
+            f"Driving: distance_error = {distance_error:.2f}, angle_error = {angle_error:.2f}"
+        )
+    
     def stop_robot(self):
         """Stop the robot by publishing zero velocity."""
         cmd = Twist()
