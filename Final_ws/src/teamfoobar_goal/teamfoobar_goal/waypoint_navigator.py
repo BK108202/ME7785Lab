@@ -139,38 +139,33 @@ class WaypointNavigator(Node):
     def timer_callback(self):
         """
         Main control loop.
-          - If turning is active, command a pure turn until the desired turn is reached.
-          - Once turning is complete, use the wall_point (from the front) to compute a waypoint.
-          - Then, drive toward the waypoint.
+        - If turning is active, command a pure turn until the desired turn is reached.
+        - Once turning is complete and a wall reading is available, compute a final waypoint 
+            that is 50 cm from the wall.
+        - If the distance to the final waypoint is long, divide that path into intermediate waypoints,
+            so that the robot moves in shorter, more controlled segments.
+        - Use proportional control to drive the robot toward the current waypoint.
         """
         # --- Turning Phase ---
         if self.turning:
-            # Compute how much we have turned so far.
-            # Account for wrap-around using atan2 on sine and cosine differences.
             delta = self.globalAng - self.turn_start_angle
-            # Normalize the angle difference to [-pi, pi].
             delta = math.atan2(math.sin(delta), math.cos(delta))
             self.get_logger().info(f"Turning: delta = {delta:.2f}, desired = {self.desired_turn_angle:.2f}")
-            # Check if the absolute angle turned meets or exceeds the desired turn (with some tolerance).
             if abs(delta) >= abs(self.desired_turn_angle) - 0.05:
                 self.get_logger().info("Turn complete.")
                 self.turning = False
-                # Clear the recognized sign so that subsequent laser scans compute the wall point.
                 self.recognized_sign = None
             else:
-                # Compute a proportional angular velocity command.
-                kp_turn = 1.5  # tuning parameter: adjust as necessary.
+                kp_turn = 1.5
                 error = self.desired_turn_angle - delta
                 cmd = Twist()
                 cmd.linear.x = 0.0
                 cmd.angular.z = kp_turn * error
                 self.cmd_pub.publish(cmd)
-                return  # Do not proceed with further navigation until turning is complete.
+                return  # Exit until turning is done.
 
         # --- Post-turn / Waypoint Phase ---
-        # If wall_point is not yet available, wait.
         if self.wall_point is None:
-            # Option: Move forward slowly until a valid wall reading is received.
             cmd = Twist()
             cmd.linear.x = 0.1
             cmd.angular.z = 0.0
@@ -178,7 +173,7 @@ class WaypointNavigator(Node):
             self.get_logger().info("Waiting for wall detection in front...")
             return
 
-        # Compute a waypoint that is offset 50 cm from the wall.
+        # Compute the final waypoint (offset 50 cm from the wall)
         wall_x, wall_y = self.wall_point
         dx = self.globalPos.x - wall_x
         dy = self.globalPos.y - wall_y
@@ -190,22 +185,39 @@ class WaypointNavigator(Node):
         offset_x = (dx / d) * self.waypoint_offset
         offset_y = (dy / d) * self.waypoint_offset
 
-        waypoint = Pose2D()
-        waypoint.x = wall_x + offset_x
-        waypoint.y = wall_y + offset_y
-        waypoint.theta = self.globalAng
-        self.current_waypoint = waypoint
-        self.get_logger().info(f"Computed waypoint: ({waypoint.x:.2f}, {waypoint.y:.2f})")
+        final_wp = Pose2D()
+        final_wp.x = wall_x + offset_x
+        final_wp.y = wall_y + offset_y
+        final_wp.theta = self.globalAng  # Use current orientation (could also be adjusted)
 
-        # Drive toward the waypoint using proportional control.
-        error_x = self.current_waypoint.x - self.globalPos.x
-        error_y = self.current_waypoint.y - self.globalPos.y
+        # --- Intermediate Waypoints (Path-Splitting) ---
+        # Instead of driving directly to final_wp if far away,
+        # compute an intermediate waypoint along the straight-line path.
+        current_x, current_y = self.globalPos.x, self.globalPos.y
+        distance_to_final = math.hypot(final_wp.x - current_x, final_wp.y - current_y)
+        max_seg_distance = 1.0  # Maximum distance per segment (adjust as needed)
+
+        if distance_to_final > max_seg_distance:
+            ratio = max_seg_distance / distance_to_final
+            intermediate_wp = Pose2D()
+            intermediate_wp.x = current_x + ratio * (final_wp.x - current_x)
+            intermediate_wp.y = current_y + ratio * (final_wp.y - current_y)
+            intermediate_wp.theta = final_wp.theta
+            self.current_waypoint = intermediate_wp
+            self.get_logger().info(f"Intermediate waypoint set: ({intermediate_wp.x:.2f}, {intermediate_wp.y:.2f})")
+        else:
+            self.current_waypoint = final_wp
+            self.get_logger().info(f"Final waypoint set: ({final_wp.x:.2f}, {final_wp.y:.2f})")
+
+        # --- Drive Toward the Current Waypoint ---
+        error_x = self.current_waypoint.x - current_x
+        error_y = self.current_waypoint.y - current_y
         distance_error = math.hypot(error_x, error_y)
-        
+
         if distance_error < 0.05:
             self.get_logger().info("Waypoint reached. Ready for next sign command.")
             self.current_waypoint = None
-            self.wall_point = None  # Clear wall point so new laser scans update it.
+            self.wall_point = None  # Clear so that new laser scans will update the wall point.
             self.stop_robot()
             return
 
@@ -213,14 +225,16 @@ class WaypointNavigator(Node):
         angle_error = desired_angle - self.globalAng
         angle_error = math.atan2(math.sin(angle_error), math.cos(angle_error))
 
-        kp_linear = 1.0
-        kp_angular = 2.0
+        # Updated controller gains (tuning as needed)
+        kp_linear = 1.2
+        kp_angular = 2.5
 
         cmd = Twist()
-        cmd.linear.x = min(kp_linear * distance_error, 0.2)
+        cmd.linear.x = min(kp_linear * distance_error, 0.3)
         cmd.angular.z = max(min(kp_angular * angle_error, 1.0), -1.0)
         self.cmd_pub.publish(cmd)
         self.get_logger().info(f"Driving: distance_error = {distance_error:.2f}, angle_error = {angle_error:.2f}")
+
 
     def stop_robot(self):
         """Stop the robot by publishing zero velocity."""
