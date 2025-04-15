@@ -74,11 +74,18 @@ class WaypointNavigator(Node):
         self.globalAng = orientation - self.Init_ang
 
     def sign_callback(self, msg: Int32):
-        """
-        Save the recognized sign from the sign recognition node.
-        """
+        # If a 0 is received, ignore it so that it doesn’t override a valid sign.
+        if msg.data == 0:
+            self.get_logger().info("Received sign 0, ignoring to avoid accidental forward movement.")
+            return
+        # If already navigating (i.e. a waypoint is set), ignore new sign messages.
+        if self.current_waypoint is not None:
+            self.get_logger().info("Already navigating to a waypoint; ignoring new sign message.")
+            return
+        # Otherwise, update recognized_sign.
         self.recognized_sign = msg.data
         self.get_logger().info(f"Received recognized sign: {self.recognized_sign}")
+
 
     def trigger_callback(self, msg: Bool):
         """
@@ -132,30 +139,21 @@ class WaypointNavigator(Node):
 
     def timer_callback(self):
         """
-        Decide on robot movement based on obstacle trigger and sign/wall data.
-        
-        - If no obstacle is triggered (self.trigger is False), command default forward motion.
-        - If an obstacle is detected (self.trigger True) and valid sign/wall data exist, compute a waypoint and drive toward it.
+        If a recognized sign and a wall point exist, compute a waypoint such that the robot 
+        will be positioned 50 cm from the wall. Then, use a proportional controller to drive 
+        toward that waypoint.
         """
-        # No obstacle trigger: move forward at a default speed.
-        if not self.trigger:
+        # If no valid sign or wall point is available, issue a default forward movement:
+        if self.recognized_sign is None or self.wall_point is None:
             cmd = Twist()
-            cmd.linear.x = 0.1  # Default forward speed.
+            cmd.linear.x = 0.1  # default forward speed
             cmd.angular.z = 0.0
             self.cmd_pub.publish(cmd)
-            self.get_logger().info("No obstacle triggered. Moving forward by default.")
-            return
-
-        # When an obstacle is triggered, check for sign and wall information.
-        if self.recognized_sign is None or self.wall_point is None:
-            # If no sign is recognized (or no wall is computed), stop the robot.
-            self.get_logger().info("Obstacle triggered but no valid sign/wall data. Stopping robot.")
-            self.stop_robot()
+            self.get_logger().info("No valid sign detected. Moving forward by default.")
             return
 
         # Compute the waypoint based on the wall point and desired offset.
         wall_x, wall_y = self.wall_point
-        # Compute vector from wall to robot (in global frame).
         dx = self.globalPos.x - wall_x
         dy = self.globalPos.y - wall_y
         d = math.hypot(dx, dy)
@@ -163,16 +161,13 @@ class WaypointNavigator(Node):
             self.get_logger().warn("Robot is exactly at the wall point; cannot compute offset.")
             return
 
-        # Normalize the vector and multiply by the desired offset (50 cm).
         offset_x = (dx / d) * self.waypoint_offset
         offset_y = (dy / d) * self.waypoint_offset
 
-        # Compute waypoint: position along the line from the wall to the robot,
-        # offset by 50 cm from the wall.
         waypoint = Pose2D()
         waypoint.x = wall_x + offset_x
         waypoint.y = wall_y + offset_y
-        waypoint.theta = self.globalAng  # Orientation remains aligned with current global angle.
+        waypoint.theta = self.globalAng
         self.current_waypoint = waypoint
         self.get_logger().info(f"Computed waypoint: ({waypoint.x:.2f}, {waypoint.y:.2f})")
         
@@ -182,9 +177,9 @@ class WaypointNavigator(Node):
             error_y = self.current_waypoint.y - self.globalPos.y
             distance_error = math.hypot(error_x, error_y)
             
-            # When waypoint is reached, reset sign and wall point to avoid repeated recalculations.
+            # When the waypoint is reached, reset the sign and wall detection.
             if distance_error < 0.05:
-                self.get_logger().info("Waypoint reached.")
+                self.get_logger().info("Waypoint reached. Clearing sign and wall data.")
                 self.current_waypoint = None
                 self.recognized_sign = None
                 self.wall_point = None
@@ -195,7 +190,6 @@ class WaypointNavigator(Node):
             angle_error = desired_angle - self.globalAng
             angle_error = math.atan2(math.sin(angle_error), math.cos(angle_error))
             
-            # Proportional control gains.
             kp_linear = 1.0
             kp_angular = 2.0
 
@@ -203,8 +197,7 @@ class WaypointNavigator(Node):
             cmd.linear.x = min(kp_linear * distance_error, 0.2)
             cmd.angular.z = max(min(kp_angular * angle_error, 1.0), -1.0)
             self.cmd_pub.publish(cmd)
-            self.get_logger().info(
-                f"Driving: distance_error = {distance_error:.2f}, angle_error = {angle_error:.2f}")
+            self.get_logger().info(f"Driving: distance_error = {distance_error:.2f}, angle_error = {angle_error:.2f}")
         else:
             self.stop_robot()
 
