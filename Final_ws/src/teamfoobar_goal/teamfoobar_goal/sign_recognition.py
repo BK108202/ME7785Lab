@@ -21,6 +21,11 @@ class SignRecognition(Node):
         self.bridge = CvBridge()
         # Load the pre-trained KNN model.
         self.knn_model = cv2.ml.KNearest_load('knn_model.xml')
+        self.get_logger().error("Model load successfully")
+        if self.knn_model.empty():
+            self.get_logger().error("Failed to load the KNN model. Please check the knn_model.xml file.")
+            return
+
         self.latest_image = None
 
     def image_callback(self, msg):
@@ -57,8 +62,14 @@ class SignRecognition(Node):
             self.get_logger().info(f"Sample shape: {sample.shape}, dtype: {sample.dtype}")
 
             # Define the number of neighbors to use.
-            k = 5
-            ret, results, neighbours, dist = self.knn_model.findNearest(sample, k)
+            # ret, results, neighbours, dist = self.knn_model.findNearest(sample, 5)
+            try:
+                k = 5  # or your chosen value
+                ret, results, neighbours, dist = self.knn_model.findNearest(sample, 5)
+                self.get_logger().info(f"KNN result: {ret}, {results}")
+            except cv2.error as e:
+                self.get_logger().error(f"Error in findNearest: {e}")
+            
             prediction = int(ret)
             self.get_logger().info(f"Predicted sign: {prediction}")
             
