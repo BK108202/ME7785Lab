@@ -275,7 +275,9 @@ class SignRecognition(Node):
             feature_vector=True
         )
 
-        combined_features = np.concatenate((color_hist, hog_features))
+        hog_skewness = skew(hog_features)
+
+        combined_features = np.concatenate((color_hist, hog_features, [hog_skewness]))
         return combined_features
 
 def main(args=None):
