@@ -15,7 +15,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import to_categorical
 
 # Import the arrow extraction function from preprocessing.py
-from preprocessing_test5 import preprocess_image
+from preprocessing_test9 import preprocess_image
 
 # Fixed image dimensions for CNN input (width, height)
 FIXED_SIZE = (128, 128)

@@ -45,7 +45,23 @@ def preprocess_image(img, output_size=(50, 50)):
         resized_img = cv2.resize(cropped_arrow, output_size)
     else:
         # If no arrow is detected, resize the whole image to guarantee a fixed output size
-        resized_img = cv2.resize(img, output_size)
+        h, w = img.shape[:2]
+        crop_w, crop_h = 200, 200
+
+        # Compute top‑left corner of center crop
+        start_x = max((w - crop_w) // 2, 0)
+        start_y = max((h - crop_h) // 2, 0)
+        end_x = start_x + crop_w
+        end_y = start_y + crop_h
+
+        # If image smaller than 200×200, fall back to resizing whole image to 200×200
+        if h < crop_h or w < crop_w:
+            center_crop = cv2.resize(img, (crop_w, crop_h))
+        else:
+            center_crop = img[start_y:end_y, start_x:end_x]
+
+        # Finally, resize the center crop to the network’s expected output size
+        resized_img = cv2.resize(center_crop, output_size)
 
     # Using 8 bins per channel (adjustable) over the range [0, 256].
     histSize = [8]
