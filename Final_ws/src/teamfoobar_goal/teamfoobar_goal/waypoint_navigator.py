@@ -83,8 +83,8 @@ class WaypointNavigator(Node):
         if self.goal_reached:
             return
 
-        if self.turning:
-            self.get_logger().info("Already processing a turn; ignoring new sign message.")
+        if self.turning or self.current_waypoint is not None:
+            self.get_logger().info("Already processing a turn/waypoint; ignoring new sign message.")
             return
 
         if msg.data == 5:
@@ -169,6 +169,7 @@ class WaypointNavigator(Node):
             else:
                 kp_turn = 1.5  # Tuning parameter.
                 error = self.desired_turn_angle - delta
+                error = math.atan2(math.sin(error), math.cos(error))
                 cmd = Twist()
                 cmd.linear.x = 0.0
                 cmd.angular.z = kp_turn * error
