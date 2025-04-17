@@ -83,7 +83,7 @@ class WaypointNavigator(Node):
         if self.goal_reached:
             return
 
-        if self.turning or self.current_waypoint is not None:
+        if self.turning:
             self.get_logger().info("Already processing a turn/waypoint; ignoring new sign message.")
             return
 
@@ -97,10 +97,13 @@ class WaypointNavigator(Node):
         elif msg.data == 2:
             self.desired_turn_angle = -math.pi / 2  # Turn right 90°.
         elif msg.data == 3 or msg.data == 4:
-            self.desired_turn_angle = math.pi - 0.001       # Turn 180°.
+            self.desired_turn_angle = math.pi       # Turn 180°.
         else:
             self.get_logger().warn(f"Unrecognized sign: {msg.data}. Ignoring.")
             return
+        
+        self.current_waypoint = None
+        self.stop_robot()
 
         self.turning = True
         self.turn_start_angle = self.globalAng
@@ -241,7 +244,7 @@ class WaypointNavigator(Node):
 
         cmd = Twist()
         cmd.linear.x = min(kp_linear * distance_error, 0.1)
-        cmd.angular.z = max(min(kp_angular * angle_error, 1.0), -1.0)
+        cmd.angular.z = max(min(kp_angular * angle_error, 0.5), -0.5)
         self.cmd_pub.publish(cmd)
         self.get_logger().info(f"Driving: distance_error = {distance_error:.2f}, angle_error = {angle_error:.2f}")
 
