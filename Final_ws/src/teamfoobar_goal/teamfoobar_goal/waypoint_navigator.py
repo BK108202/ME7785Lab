@@ -83,8 +83,8 @@ class WaypointNavigator(Node):
         if self.goal_reached:
             return
 
-        if self.turning or self.current_waypoint is not None:
-            self.get_logger().info("Already processing a turn/waypoint; ignoring new sign message.")
+        if self.turning:
+            self.get_logger().info("Already processing a turn; ignoring new sign message.")
             return
 
         if msg.data == 5:
