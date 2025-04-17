@@ -59,15 +59,15 @@ class SignRecognition(Node):
                 return
 
             # Convert image from BGR to HSV and preprocess.
-            hsv_image = cv2.cvtColor(self.latest_image, cv2.COLOR_BGR2HSV)
-            features = self.preprocess_image(hsv_image)
+            # hsv_image = cv2.cvtColor(self.latest_image, cv2.COLOR_BGR2HSV)
+            features = self.preprocess_image(self.latest_image)
             if features.size == 0:
                 self.get_logger().warn("No features extracted from image. Skipping classification.")
                 return
 
             # Debug: Check features properties.
-            # features = np.array(features)
-            # self.get_logger().info(f"Features shape: {features.shape}, dtype: {features.dtype}")
+            features = np.array(features)
+            self.get_logger().info(f"Features shape: {features.shape}, dtype: {features.dtype}")
             
             # Reshape and convert to float32.
             sample = features.reshape(1, -1).astype(np.float32)
@@ -274,9 +274,7 @@ class SignRecognition(Node):
             feature_vector=True
         )
 
-        hog_skewness = skew(hog_features)
-
-        combined_features = np.concatenate((color_hist, hog_features, [hog_skewness]))
+        combined_features = np.concatenate((color_hist, hog_features))
         return combined_features
 
 def main(args=None):

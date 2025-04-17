@@ -182,7 +182,5 @@ def preprocess_image(img, output_size=(50, 50)):
         feature_vector=True
     )
 
-    hog_skewness = skew(hog_features)
-
-    combined_features = np.concatenate((color_hist, hog_features, [hog_skewness]))
+    combined_features = np.concatenate((color_hist, hog_features))
     return combined_features
