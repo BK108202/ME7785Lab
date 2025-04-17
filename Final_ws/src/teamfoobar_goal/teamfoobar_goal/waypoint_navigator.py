@@ -26,6 +26,9 @@ class WaypointNavigator(Node):
         self.create_subscription(LaserScan, '/scan', self.scan_callback, qos_profile_sensor)
         self.create_subscription(Bool, '/trigger_sign', self.trigger_callback, 10)
         
+        # --- NEW: once goal reached, stop all processing ---
+        self.goal_reached = False
+
         # Odometry variables.
         self.Init = True
         self.Init_ang = 0.0
@@ -37,7 +40,7 @@ class WaypointNavigator(Node):
         self.recognized_sign = None   # from sign recognition (used only to trigger turning)
         self.current_waypoint = None  # computed waypoint (Pose2D)
         self.wall_point = None        # computed wall point (global coordinates)
-        self.waypoint_offset = 0.45    # 45 cm offset from the wall (~50 cm as desired)
+        self.waypoint_offset = 0.45   # 45 cm offset from the wall (~50 cm as desired)
 
         # Variables for turning.
         self.turning = False          # Are we currently in a turning phase?
@@ -75,8 +78,11 @@ class WaypointNavigator(Node):
         When a sign is received:
          - If sign 5: stop (goal reached).
          - If sign 1, 2, 3, or 4 and we're not already turning or navigating, start turning.
-        During turning, ignore further sign messages.
         """
+        # --- NEW: skip any further sign processing once we've hit the goal ---
+        if self.goal_reached:
+            return
+
         if self.turning or self.current_waypoint is not None:
             self.get_logger().info("Already processing a turn/waypoint; ignoring new sign message.")
             return
@@ -84,6 +90,7 @@ class WaypointNavigator(Node):
         if msg.data == 5:
             self.get_logger().info("Goal reached. Stopping robot.")
             self.stop_robot()
+            self.goal_reached = True
             return
         elif msg.data == 1:
             self.desired_turn_angle = math.pi / 2  # Turn left 90°.
@@ -98,9 +105,13 @@ class WaypointNavigator(Node):
         self.turning = True
         self.turn_start_angle = self.globalAng
         self.get_logger().info(f"Initiating turn of {self.desired_turn_angle:.2f} radians from starting angle {self.turn_start_angle:.2f}.")
-    
+
     def trigger_callback(self, msg: Bool):
         """Update the obstacle trigger state."""
+        # --- NEW: ignore any new triggers after goal reached ---
+        if self.goal_reached:
+            return
+
         self.trigger = msg.data
         if self.trigger:
             self.get_logger().info("Obstacle trigger detected.")
@@ -108,10 +119,11 @@ class WaypointNavigator(Node):
     def scan_callback(self, msg: LaserScan):
         """
         Compute the wall point from the laser scan.
-        When not turning, always use the front (target_angle = 0).
+        When not turning or goal reached, always use the front (target_angle = 0).
         """
-        if self.turning:
-            return  # Do not update the wall point during turning.
+        # --- NEW: once goal reached, don’t even compute wall points anymore ---
+        if self.goal_reached or self.turning:
+            return
         
         target_angle = 0.0  # Use the front.
         index = int((target_angle - msg.angle_min) / msg.angle_increment)
@@ -139,10 +151,12 @@ class WaypointNavigator(Node):
           - If turning, command turning until desired turn is reached.
           - Once turning is complete and wall data is available, compute the final waypoint 
             (offset from the wall).
-          - If the final waypoint is far (greater than a maximum segment length), compute an
-            intermediate waypoint along the straight-line path (path splitting).
           - Drive toward the current (intermediate or final) waypoint.
         """
+        # --- NEW: if goal reached, do nothing forever ---
+        if self.goal_reached:
+            return
+
         # --- Turning Phase ---
         if self.turning:
             delta = self.globalAng - self.turn_start_angle
@@ -159,7 +173,7 @@ class WaypointNavigator(Node):
                 cmd.linear.x = 0.0
                 cmd.angular.z = kp_turn * error
                 self.cmd_pub.publish(cmd)
-                return  # Wait until turning is complete.
+            return
 
         # --- Post-turn / Waypoint Phase ---
         if self.wall_point is None:
@@ -170,7 +184,7 @@ class WaypointNavigator(Node):
             self.get_logger().info("Waiting for wall detection in front...")
             return
 
-        # Compute the final waypoint (50 cm offset from the wall).
+        # Compute the final waypoint (offset from the wall).
         wall_x, wall_y = self.wall_point
         dx = self.globalPos.x - wall_x
         dy = self.globalPos.y - wall_y
@@ -240,7 +254,10 @@ class WaypointNavigator(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = WaypointNavigator()
-    rclpy.spin(node)
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
     node.destroy_node()
     rclpy.shutdown()
 
