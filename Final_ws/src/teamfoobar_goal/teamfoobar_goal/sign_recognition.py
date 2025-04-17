@@ -10,6 +10,7 @@ from skimage.feature import hog
 from scipy.stats import skew
 import os
 import importlib.resources
+from collections import Counter
 
 class SignRecognition(Node):
     def __init__(self):
@@ -53,47 +54,50 @@ class SignRecognition(Node):
 
     def trigger_callback(self, msg: Bool):
         self.get_logger().info(f"Received trigger message: {msg.data}")
-        if msg.data:
-            if self.latest_image is None:
-                self.get_logger().warn("No image available for sign recognition.")
-                return
+        if not msg.data:
+            return
 
-            # Convert image from BGR to HSV and preprocess.
-            # hsv_image = cv2.cvtColor(self.latest_image, cv2.COLOR_BGR2HSV)
-            features = self.preprocess_image(self.latest_image)
-            if features.size == 0:
-                self.get_logger().warn("No features extracted from image. Skipping classification.")
-                return
+        if self.latest_image is None:
+            self.get_logger().warn("No image available for sign recognition.")
+            return
 
-            # Debug: Check features properties.
-            features = np.array(features)
-            self.get_logger().info(f"Features shape: {features.shape}, dtype: {features.dtype}")
-            
-            # Reshape and convert to float32.
-            sample = features.reshape(1, -1).astype(np.float32)
-            self.get_logger().info(f"Sample shape: {sample.shape}, dtype: {sample.dtype}")
+        # Extract features
+        features = self.preprocess_image(self.latest_image)
+        if features.size == 0:
+            self.get_logger().warn("No features extracted from image. Skipping classification.")
+            return
 
-            # Define the number of neighbors to use.
-            # ret, results, neighbours, dist = self.knn_model.findNearest(sample, 5)
+        # Prepare sample
+        sample = features.reshape(1, -1).astype(np.float32)
+
+        # Run KNN 10 times and collect votes
+        votes = []
+        for i in range(10):
             try:
-                ret, results, neighbours, dist = self.knn_model.findNearest(sample, 5)
-                self.get_logger().info(f"KNN result: {ret}, {results}")
+                ret, _, _, _ = self.knn_model.findNearest(sample, 5)
+                votes.append(int(ret))
             except cv2.error as e:
-                self.get_logger().error(f"Error in findNearest: {e}")
-            
-            prediction = int(ret)
-            self.get_logger().info(f"Predicted sign: {prediction}")
-            
-            # Ignore sign 0 to avoid accidental forward command.
-            if prediction == 0:
-                self.get_logger().info("Sign 0 recognized (go forward) - ignored.")
-                return
+                self.get_logger().error(f"Error in findNearest on iteration {i}: {e}")
 
-            # Publish the recognized sign.
-            sign_msg = Int32()
-            sign_msg.data = prediction
-            self.sign_pub.publish(sign_msg)
-            self.get_logger().info("Published recognized sign message.")
+        if not votes:
+            self.get_logger().warn("All KNN predictions failed.")
+            return
+
+        # Majority vote
+        vote_counts = Counter(votes)
+        predicted = vote_counts.most_common(1)[0][0]
+        self.get_logger().info(f"KNN votes: {votes} → chosen: {predicted}")
+
+        # Ignore sign 0 as before
+        if predicted == 0:
+            self.get_logger().info("Sign 0 recognized (go forward) - ignored.")
+            return
+
+        # Publish the majority-vote result
+        sign_msg = Int32()
+        sign_msg.data = predicted
+        self.sign_pub.publish(sign_msg)
+        self.get_logger().info("Published recognized sign message.")
 
     def preprocess_image(self, img, output_size=(50, 50)):
         # Add self

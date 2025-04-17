@@ -28,7 +28,6 @@ class WaypointNavigator(Node):
         
         # --- NEW: once goal reached, stop all processing ---
         self.goal_reached = False
-        self.goal_count = 0
 
         # Odometry variables.
         self.Init = True
@@ -80,7 +79,6 @@ class WaypointNavigator(Node):
          - If sign 5: stop (goal reached).
          - If sign 1, 2, 3, or 4 and we're not already turning or navigating, start turning.
         """
-        # --- NEW: skip any further sign processing once we've hit the goal ---
         if self.goal_reached:
             return
 
@@ -89,30 +87,30 @@ class WaypointNavigator(Node):
             return
 
         if msg.data == 5:
-            self.goal_count += 1
-            self.get_logger().info(f"Goal sign detected ({self.goal_count}/3).")
-            if self.goal_count >= 3:
-                self.get_logger().info("Goal confirmed 3 times. Stopping robot.")
-                self.stop_robot()
-                self.goal_reached = True
+            self.get_logger().info("Goal sign detected. Stopping robot.")
+            self.stop_robot()
+            self.goal_reached = True
             return
         elif msg.data == 1:
-            self.desired_turn_angle = math.pi / 2  # Turn left 90°.
+            self.desired_turn_angle = math.pi / 2    # Turn left 90°.
         elif msg.data == 2:
-            self.desired_turn_angle = -math.pi / 2  # Turn right 90°.
+            self.desired_turn_angle = -math.pi / 2   # Turn right 90°.
         elif msg.data == 3 or msg.data == 4:
-            self.desired_turn_angle = math.pi       # Turn 180°.
+            self.desired_turn_angle = math.pi        # Turn 180°.
         else:
             self.get_logger().warn(f"Unrecognized sign: {msg.data}. Ignoring.")
             return
 
+        # Begin turning phase
         self.turning = True
         self.turn_start_angle = self.globalAng
-        self.get_logger().info(f"Initiating turn of {self.desired_turn_angle:.2f} radians from starting angle {self.turn_start_angle:.2f}.")
+        self.get_logger().info(
+            f"Initiating turn of {self.desired_turn_angle:.2f} radians "
+            f"from starting angle {self.turn_start_angle:.2f}."
+        )
 
     def trigger_callback(self, msg: Bool):
         """Update the obstacle trigger state."""
-        # --- NEW: ignore any new triggers after goal reached ---
         if self.goal_reached:
             return
 
@@ -125,11 +123,10 @@ class WaypointNavigator(Node):
         Compute the wall point from the laser scan.
         When not turning or goal reached, always use the front (target_angle = 0).
         """
-        # --- NEW: once goal reached, don’t even compute wall points anymore ---
         if self.goal_reached or self.turning:
             return
         
-        target_angle = 0.0  # Use the front.
+        target_angle = 0.0
         index = int((target_angle - msg.angle_min) / msg.angle_increment)
         if index < 0 or index >= len(msg.ranges):
             self.get_logger().warn("Front laser scan index out of range.")
@@ -140,28 +137,24 @@ class WaypointNavigator(Node):
             self.get_logger().warn("Invalid distance reading at front.")
             return
 
-        # Compute wall point in robot's frame.
+        # Compute and transform wall point
         wall_x_robot = distance * math.cos(target_angle)
         wall_y_robot = distance * math.sin(target_angle)
-        # Transform to global frame.
-        global_x = self.globalPos.x + wall_x_robot * math.cos(self.globalAng) - wall_y_robot * math.sin(self.globalAng)
-        global_y = self.globalPos.y + wall_x_robot * math.sin(self.globalAng) + wall_y_robot * math.cos(self.globalAng)
+        global_x = (self.globalPos.x +
+                    wall_x_robot * math.cos(self.globalAng) -
+                    wall_y_robot * math.sin(self.globalAng))
+        global_y = (self.globalPos.y +
+                    wall_x_robot * math.sin(self.globalAng) +
+                    wall_y_robot * math.cos(self.globalAng))
         self.wall_point = (global_x, global_y)
         self.get_logger().info(f"Front wall position (global): ({global_x:.2f}, {global_y:.2f})")
 
     def timer_callback(self):
-        """
-        Main control loop:
-          - If turning, command turning until desired turn is reached.
-          - Once turning is complete and wall data is available, compute the final waypoint 
-            (offset from the wall).
-          - Drive toward the current (intermediate or final) waypoint.
-        """
-        # --- NEW: if goal reached, do nothing forever ---
+        """Main control loop: handle turning, then compute and drive to waypoints."""
         if self.goal_reached:
             return
 
-        # --- Turning Phase ---
+        # Turning phase
         if self.turning:
             delta = self.globalAng - self.turn_start_angle
             delta = math.atan2(math.sin(delta), math.cos(delta))
@@ -169,20 +162,18 @@ class WaypointNavigator(Node):
             if abs(delta) >= abs(self.desired_turn_angle) - 0.05:
                 self.get_logger().info("Turn complete.")
                 self.turning = False
-                self.recognized_sign = None
             else:
-                kp_turn = 1.5  # Tuning parameter.
+                kp_turn = 1.5
                 error = self.desired_turn_angle - delta
                 error = math.atan2(math.sin(error), math.cos(error))
-                omega = kp_turn * error
-                omega = max(min(omega, 0.5), -0.5)
+                omega = max(min(kp_turn * error, 0.5), -0.5)
                 cmd = Twist()
                 cmd.linear.x = 0.0
                 cmd.angular.z = omega
                 self.cmd_pub.publish(cmd)
             return
 
-        # --- Post-turn / Waypoint Phase ---
+        # Wait for wall detection
         if self.wall_point is None:
             cmd = Twist()
             cmd.linear.x = 0.1
@@ -191,7 +182,7 @@ class WaypointNavigator(Node):
             self.get_logger().info("Waiting for wall detection in front...")
             return
 
-        # Compute the final waypoint (offset from the wall).
+        # Compute final waypoint offset from wall
         wall_x, wall_y = self.wall_point
         dx = self.globalPos.x - wall_x
         dy = self.globalPos.y - wall_y
@@ -207,49 +198,49 @@ class WaypointNavigator(Node):
         final_wp.y = wall_y + offset_y
         final_wp.theta = self.globalAng
 
-        # --- Intermediate Waypoints (Path-Splitting) ---
-        current_x = self.globalPos.x
-        current_y = self.globalPos.y
+        # Possibly split into an intermediate waypoint
+        current_x, current_y = self.globalPos.x, self.globalPos.y
         distance_to_final = math.hypot(final_wp.x - current_x, final_wp.y - current_y)
-        max_seg_distance = 0.5  # Maximum segment length in meters (adjust as needed)
+        max_seg_distance = 0.5
 
         if distance_to_final > max_seg_distance:
-            # Compute an intermediate waypoint along the straight line.
             ratio = max_seg_distance / distance_to_final
             intermediate_wp = Pose2D()
             intermediate_wp.x = current_x + ratio * (final_wp.x - current_x)
             intermediate_wp.y = current_y + ratio * (final_wp.y - current_y)
             intermediate_wp.theta = final_wp.theta
             self.current_waypoint = intermediate_wp
-            self.get_logger().info(f"Intermediate waypoint set: ({intermediate_wp.x:.2f}, {intermediate_wp.y:.2f})")
+            self.get_logger().info(
+                f"Intermediate waypoint set: ({intermediate_wp.x:.2f}, {intermediate_wp.y:.2f})"
+            )
         else:
             self.current_waypoint = final_wp
-            self.get_logger().info(f"Final waypoint set: ({final_wp.x:.2f}, {final_wp.y:.2f})")
+            self.get_logger().info(
+                f"Final waypoint set: ({final_wp.x:.2f}, {final_wp.y:.2f})"
+            )
 
-        # --- Drive Toward the Current Waypoint ---
-        error_x = self.current_waypoint.x - current_x
-        error_y = self.current_waypoint.y - current_y
-        distance_error = math.hypot(error_x, error_y)
-        
-        if distance_error < 0.05:
+        # Drive toward the waypoint
+        ex, ey = (self.current_waypoint.x - current_x,
+                  self.current_waypoint.y - current_y)
+        dist_err = math.hypot(ex, ey)
+
+        if dist_err < 0.05:
             self.get_logger().info("Waypoint reached.")
-            # Clear the current waypoint so that next cycle computes a new intermediate waypoint.
             self.current_waypoint = None
             self.stop_robot()
             return
 
-        desired_angle = math.atan2(error_y, error_x)
-        angle_error = desired_angle - self.globalAng
-        angle_error = math.atan2(math.sin(angle_error), math.cos(angle_error))
-        
-        kp_linear = 1.0
-        kp_angular = 2.0
+        desired_angle = math.atan2(ey, ex)
+        angle_err = desired_angle - self.globalAng
+        angle_err = math.atan2(math.sin(angle_err), math.cos(angle_err))
 
         cmd = Twist()
-        cmd.linear.x = min(kp_linear * distance_error, 0.1)
-        cmd.angular.z = max(min(kp_angular * angle_error, 0.5), -0.5)
+        cmd.linear.x = min(dist_err, 0.1)
+        cmd.angular.z = max(min(2.0 * angle_err, 0.5), -0.5)
         self.cmd_pub.publish(cmd)
-        self.get_logger().info(f"Driving: distance_error = {distance_error:.2f}, angle_error = {angle_error:.2f}")
+        self.get_logger().info(
+            f"Driving: distance_error = {dist_err:.2f}, angle_error = {angle_err:.2f}"
+        )
 
     def stop_robot(self):
         """Stop the robot by publishing zero velocity."""
