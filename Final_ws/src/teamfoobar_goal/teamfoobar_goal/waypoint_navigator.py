@@ -239,7 +239,7 @@ class WaypointNavigator(Node):
         kp_angular = 2.0
 
         cmd = Twist()
-        cmd.linear.x = min(kp_linear * distance_error, 0.2)
+        cmd.linear.x = min(kp_linear * distance_error, 0.1)
         cmd.angular.z = max(min(kp_angular * angle_error, 1.0), -1.0)
         self.cmd_pub.publish(cmd)
         self.get_logger().info(f"Driving: distance_error = {distance_error:.2f}, angle_error = {angle_error:.2f}")
