@@ -28,6 +28,7 @@ class WaypointNavigator(Node):
         
         # --- NEW: once goal reached, stop all processing ---
         self.goal_reached = False
+        self.goal_count = 0
 
         # Odometry variables.
         self.Init = True
@@ -88,9 +89,12 @@ class WaypointNavigator(Node):
             return
 
         if msg.data == 5:
-            self.get_logger().info("Goal reached. Stopping robot.")
-            self.stop_robot()
-            self.goal_reached = True
+            self.goal_count += 1
+            self.get_logger().info(f"Goal sign detected ({self.goal_count}/3).")
+            if self.goal_count >= 3:
+                self.get_logger().info("Goal confirmed 3 times. Stopping robot.")
+                self.stop_robot()
+                self.goal_reached = True
             return
         elif msg.data == 1:
             self.desired_turn_angle = math.pi / 2  # Turn left 90°.
