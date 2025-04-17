@@ -66,8 +66,8 @@ class SignRecognition(Node):
                 return
 
             # Debug: Check features properties.
-            features = np.array(features)
-            self.get_logger().info(f"Features shape: {features.shape}, dtype: {features.dtype}")
+            # features = np.array(features)
+            # self.get_logger().info(f"Features shape: {features.shape}, dtype: {features.dtype}")
             
             # Reshape and convert to float32.
             sample = features.reshape(1, -1).astype(np.float32)
@@ -76,7 +76,6 @@ class SignRecognition(Node):
             # Define the number of neighbors to use.
             # ret, results, neighbours, dist = self.knn_model.findNearest(sample, 5)
             try:
-                k = 5  # or your chosen value
                 ret, results, neighbours, dist = self.knn_model.findNearest(sample, 5)
                 self.get_logger().info(f"KNN result: {ret}, {results}")
             except cv2.error as e:
