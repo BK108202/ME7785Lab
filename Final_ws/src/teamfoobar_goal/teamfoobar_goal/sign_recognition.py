@@ -95,7 +95,7 @@ class SignRecognition(Node):
             self.sign_pub.publish(sign_msg)
             self.get_logger().info("Published recognized sign message.")
 
-    def preprocess_image(img, output_size=(50, 50)):
+    def preprocess_image(self, img, output_size=(50, 50)):
         # Convert to LAB
         LAB = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
 
