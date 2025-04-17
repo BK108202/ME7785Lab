@@ -73,18 +73,52 @@ class WaypointNavigator(Node):
         self.globalPos.z = position.z - self.Init_pos.z
         self.globalAng = orientation - self.Init_ang
 
+    # def sign_callback(self, msg: Int32):
+    #     """
+    #     When a sign is received:
+    #      - If sign 5: stop (goal reached).
+    #      - If sign 1, 2, 3, or 4 and we're not already turning or navigating, start turning.
+    #     """
+    #     # --- NEW: skip any further sign processing once we've hit the goal ---
+    #     if self.goal_reached:
+    #         return
+
+    #     if self.turning or self.current_waypoint is not None:
+    #         self.get_logger().info("Already processing a turn/waypoint; ignoring new sign message.")
+    #         return
+
+    #     if msg.data == 5:
+    #         self.get_logger().info("Goal reached. Stopping robot.")
+    #         self.stop_robot()
+    #         self.goal_reached = True
+    #         return
+    #     elif msg.data == 1:
+    #         self.desired_turn_angle = math.pi / 2  # Turn left 90°.
+    #     elif msg.data == 2:
+    #         self.desired_turn_angle = -math.pi / 2  # Turn right 90°.
+    #     elif msg.data == 3 or msg.data == 4:
+    #         self.desired_turn_angle = math.pi - 0.001       # Turn 180°.
+    #     else:
+    #         self.get_logger().warn(f"Unrecognized sign: {msg.data}. Ignoring.")
+    #         return
+
+    #     self.turning = True
+    #     self.turn_start_angle = self.globalAng
+    #     self.get_logger().info(f"Initiating turn of {self.desired_turn_angle:.2f} radians from starting angle {self.turn_start_angle:.2f}.")
     def sign_callback(self, msg: Int32):
         """
         When a sign is received:
          - If sign 5: stop (goal reached).
-         - If sign 1, 2, 3, or 4 and we're not already turning or navigating, start turning.
+         - If sign 1 or 2: go into the usual odom‑based turning logic.
+         - If sign 3 or 4: do an open‑loop 180° turn via twist() only.
         """
-        # --- NEW: skip any further sign processing once we've hit the goal ---
+        # skip any further sign processing once we've hit the goal
         if self.goal_reached:
             return
 
-        if self.turning:
-            self.get_logger().info("Already processing a turn/waypoint; ignoring new sign message.")
+        # if we're already in the odom‑based turning or moving toward a waypoint, ignore
+        if self.turning or self.current_waypoint is not None:
+            self.get_logger().info("Busy; ignoring new sign.")
             return
 
         if msg.data == 5:
@@ -92,22 +126,42 @@ class WaypointNavigator(Node):
             self.stop_robot()
             self.goal_reached = True
             return
-        elif msg.data == 1:
-            self.desired_turn_angle = math.pi / 2  # Turn left 90°.
-        elif msg.data == 2:
-            self.desired_turn_angle = -math.pi / 2  # Turn right 90°.
-        elif msg.data == 3 or msg.data == 4:
-            self.desired_turn_angle = math.pi       # Turn 180°.
-        else:
-            self.get_logger().warn(f"Unrecognized sign: {msg.data}. Ignoring.")
-            return
-        
-        self.current_waypoint = None
-        self.stop_robot()
 
-        self.turning = True
-        self.turn_start_angle = self.globalAng
-        self.get_logger().info(f"Initiating turn of {self.desired_turn_angle:.2f} radians from starting angle {self.turn_start_angle:.2f}.")
+        elif msg.data in (1, 2):
+            # leave your existing odom‑feedback code here...
+            if msg.data == 1:
+                self.desired_turn_angle = math.pi / 2
+            else:
+                self.desired_turn_angle = -math.pi / 2
+
+            self.turning = True
+            self.turn_start_angle = self.globalAng
+            self.get_logger().info(f"Starting odom‑based turn of {self.desired_turn_angle:.2f} rad.")
+
+        elif msg.data in (3, 4):
+            # -------- OPEN‑LOOP 180° TURN --------
+            self.get_logger().info("Starting open‑loop 180° turn.")
+            angular_speed = 0.5  # rad/s
+            duration = math.pi / angular_speed
+
+            # publish the constant‐velocity turn
+            cmd = Twist()
+            cmd.linear.x = 0.0
+            cmd.angular.z = angular_speed
+            self.cmd_pub.publish(cmd)
+
+            # schedule a one‑shot timer to stop the robot after 'duration' seconds
+            def _stop_and_cancel():
+                self.get_logger().info("180° open‑loop turn complete.")
+                self.stop_robot()
+                stop_timer.cancel()
+
+            stop_timer = self.create_timer(duration, _stop_and_cancel)
+            return
+
+        else:
+            self.get_logger().warn(f"Unrecognized sign: {msg.data}")
+            return
 
     def trigger_callback(self, msg: Bool):
         """Update the obstacle trigger state."""
