@@ -3,6 +3,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import LaserScan
+from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Twist
 import math
@@ -10,74 +11,78 @@ import math
 class ObstacleDetector(Node):
     def __init__(self):
         super().__init__('obstacle_detector')
-        qos_profile_sensor = QoSProfile(
+        qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
             depth=10
         )
 
-        self.subscription = self.create_subscription(
-            LaserScan,
-            '/scan',
-            self.scan_callback,
-            qos_profile_sensor
-        )
+        # Subscribers
+        self.scan_sub = self.create_subscription(
+            LaserScan, '/scan', self.scan_callback, qos)
+        self.odom_sub = self.create_subscription(
+            Odometry, '/odom', self.odom_callback, qos)
+
+        # Publishers
         self.trigger_pub = self.create_publisher(Bool, '/trigger_sign', 10)
         self.cmd_pub     = self.create_publisher(Twist, '/cmd_vel', 10)
 
-        self.distance_threshold    = 0.5  # 50 cm
+        # Parameters & state
+        self.distance_threshold    = 0.5      # [m]
         self.front_angle_range     = math.radians(15)
         self.prev_object_detected  = False
         self.aligned               = False
+        self.current_yaw           = 0.0
+
+    def odom_callback(self, msg: Odometry):
+        """Track current yaw from odometry for logging or future use."""
+        q = msg.pose.pose.orientation
+        self.current_yaw = math.atan2(
+            2*(q.w*q.z + q.x*q.y),
+            1 - 2*(q.y*q.y + q.z*q.z)
+        )
 
     def scan_callback(self, msg: LaserScan):
-        # compute indices for ±30°
+        """Detect obstacle, align to wall if needed, then publish trigger_sign."""
+        # Compute indices for ±front_angle_range
         start_idx = int((-self.front_angle_range - msg.angle_min) / msg.angle_increment)
         end_idx   = int(( self.front_angle_range - msg.angle_min) / msg.angle_increment)
         start_idx = max(start_idx, 0)
         end_idx   = min(end_idx, len(msg.ranges) - 1)
 
-        # detect obstacle in front
-        object_detected = False
-        for dist in msg.ranges[start_idx:end_idx+1]:
-            if math.isinf(dist) or math.isnan(dist):
-                continue
-            if dist < self.distance_threshold:
-                object_detected = True
-                break
+        # Check for obstacle in front
+        object_detected = any(
+            (dist < self.distance_threshold)
+            for dist in msg.ranges[start_idx:end_idx+1]
+            if math.isfinite(dist)
+        )
 
         trigger_msg = Bool()
 
         if object_detected:
-            # on rising edge, reset alignment
+            # Rising edge: re‑enable alignment
             if not self.prev_object_detected:
                 self.aligned = False
 
-            # always publish a ‘False’ trigger at start of alignment
+            # Begin a new cycle: clear prior trigger
             trigger_msg.data = False
             self.trigger_pub.publish(trigger_msg)
 
-            # alignment phase
             if not self.aligned:
-                # read ±30° distances
-                left_idx  = end_idx
-                right_idx = start_idx
-                d_left  = msg.ranges[left_idx]
-                d_right = msg.ranges[right_idx]
+                # Read distances at the two edges of our scan
+                d_left  = msg.ranges[end_idx]
+                d_right = msg.ranges[start_idx]
 
-                # if either reading invalid, skip
                 if not (math.isfinite(d_left) and math.isfinite(d_right)):
-                    # keep prev_object_detected, skip rest
                     self.prev_object_detected = True
                     return
 
-                error = d_left - d_right
-                tol   = 0.005
-                self.get_logger().info(
-                        f"Aligning: d_left={d_left:.2f}, d_right={d_right:.2f}"
-                    )
-                if abs(error) > tol:
-                    # rotate toward alignment
+                error       = d_left - d_right
+                start_thresh = 0.02    # only start rotating if error > 5 cm
+                finish_tol   = 0.005   # consider aligned when error < 5 mm
+
+                if abs(error) > start_thresh:
+                    # Rotate to reduce mismatch
                     kp    = 10.0
                     omega = max(min(kp * -error, 0.5), -0.5)
                     twist = Twist()
@@ -85,27 +90,37 @@ class ObstacleDetector(Node):
                     twist.angular.z = omega
                     self.cmd_pub.publish(twist)
                     self.get_logger().info(
-                        f"Aligning: d_left={d_left:.2f}, d_right={d_right:.2f}, ω={omega:.2f}"
+                        f"Aligning: error={error:.3f} m → ω={omega:.2f}"
                     )
-                else:
-                    # aligned: stop and send one True trigger
+
+                elif abs(error) < finish_tol:
+                    # Alignment complete
                     self.aligned = True
                     twist = Twist()
                     twist.linear.x  = 0.0
                     twist.angular.z = 0.0
                     self.cmd_pub.publish(twist)
-                    self.get_logger().info("Aligned to wall; publishing trigger.")
+
+                    self.get_logger().info(
+                        f"Aligned (yaw={self.current_yaw:.2f}); publishing trigger."
+                    )
                     trigger_msg.data = True
                     self.trigger_pub.publish(trigger_msg)
 
+                    # Reset so we can re‑align and retrigger if obstacle persists
+                    self.prev_object_detected = False
+                    self.aligned              = False
+                    return
+
+            # Mark that we're still seeing the obstacle
             self.prev_object_detected = True
 
         else:
-            # no obstacle: reset and clear
+            # No obstacle: clear everything
             trigger_msg.data = False
             self.trigger_pub.publish(trigger_msg)
             self.prev_object_detected = False
-            self.aligned = False
+            self.aligned              = False
 
 def main(args=None):
     rclpy.init(args=args)
@@ -119,4 +134,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
-    
