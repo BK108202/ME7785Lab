@@ -26,7 +26,7 @@ class ObstacleDetector(Node):
         self.cmd_pub     = self.create_publisher(Twist, '/cmd_vel', 10)
 
         self.distance_threshold    = 0.5  # 50 cm
-        self.front_angle_range     = math.radians(30)
+        self.front_angle_range     = math.radians(15)
         self.prev_object_detected  = False
         self.aligned               = False
 
@@ -72,13 +72,13 @@ class ObstacleDetector(Node):
                     return
 
                 error = d_left - d_right
-                tol   = 0.01
+                tol   = 0.005
                 self.get_logger().info(
                         f"Aligning: d_left={d_left:.2f}, d_right={d_right:.2f}"
                     )
                 if abs(error) > tol:
                     # rotate toward alignment
-                    kp    = 1.0
+                    kp    = 10.0
                     omega = max(min(kp * -error, 0.5), -0.5)
                     twist = Twist()
                     twist.linear.x  = 0.0
