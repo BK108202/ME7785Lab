@@ -79,7 +79,7 @@ class ObstacleDetector(Node):
                 if abs(error) > tol:
                     # rotate toward alignment
                     kp    = 1.0
-                    omega = max(min(kp * error, 0.5), -0.5)
+                    omega = max(min(kp * -error, -0.5), 0.5)
                     twist = Twist()
                     twist.linear.x  = 0.0
                     twist.angular.z = omega
