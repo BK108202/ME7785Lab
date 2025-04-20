@@ -11,6 +11,7 @@ from scipy.stats import skew
 import os
 import importlib.resources
 from collections import Counter
+# 19:57
 
 class SignRecognition(Node):
     def __init__(self):

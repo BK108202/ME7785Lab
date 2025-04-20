@@ -5,6 +5,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Bool
 import math
+# 19:57
 
 class ObstacleDetector(Node):
     def __init__(self):

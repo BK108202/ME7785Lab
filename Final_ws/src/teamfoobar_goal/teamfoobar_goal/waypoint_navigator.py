@@ -9,6 +9,7 @@ from std_msgs.msg import Int32, Bool
 import math
 import numpy as np
 from collections import Counter
+# 19:57
 
 class WaypointNavigator(Node):
     def __init__(self):
