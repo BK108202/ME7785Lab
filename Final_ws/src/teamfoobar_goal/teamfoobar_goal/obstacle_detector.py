@@ -23,7 +23,7 @@ class ObstacleDetector(Node):
             qos_profile_sensor
         )
         self.trigger_pub = self.create_publisher(Bool, '/trigger_sign', 10)
-        self.distance_threshold = 0.45  # 50 cm
+        self.distance_threshold = 0.43  # 50 cm
         # Define the front angular range (±30°).
         self.front_angle_range = math.radians(30)
 
