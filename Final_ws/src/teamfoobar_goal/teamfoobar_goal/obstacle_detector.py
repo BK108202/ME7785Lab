@@ -72,7 +72,10 @@ class ObstacleDetector(Node):
                     return
 
                 error = d_left - d_right
-                tol   = 0.02
+                tol   = 0.01
+                self.get_logger().info(
+                        f"Aligning: d_left={d_left:.2f}, d_right={d_right:.2f}"
+                    )
                 if abs(error) > tol:
                     # rotate toward alignment
                     kp    = 1.0
