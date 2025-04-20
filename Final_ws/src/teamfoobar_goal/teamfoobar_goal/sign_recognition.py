@@ -72,7 +72,7 @@ class SignRecognition(Node):
 
         # Run KNN 10 times and collect votes
         votes = []
-        for i in range(10):
+        for i in range(20):
             try:
                 ret, _, _, _ = self.knn_model.findNearest(sample, 5)
                 votes.append(int(ret))

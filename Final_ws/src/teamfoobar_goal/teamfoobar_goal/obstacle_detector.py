@@ -32,6 +32,8 @@ class ObstacleDetector(Node):
         self.front_angle_range     = math.radians(15)
         self.prev_object_detected  = False
         self.current_yaw           = 0.0
+        self.triggered             = False    # NEW: have we already published a True trigger this cycle?
+        self.aligned               = False
 
     def odom_callback(self, msg: Odometry):
         """Track current yaw from odometry for logging or future use."""
@@ -42,7 +44,7 @@ class ObstacleDetector(Node):
         )
 
     def scan_callback(self, msg: LaserScan):
-        """Detect obstacle, align only if error > 0.05 m, tol=0.005 m, then publish trigger_sign."""
+        """Detect obstacle, align only if needed, then publish trigger_sign exactly once."""
         # Compute indices for ±front_angle_range
         start_idx = int((-self.front_angle_range - msg.angle_min) / msg.angle_increment)
         end_idx   = int(( self.front_angle_range - msg.angle_min) / msg.angle_increment)
@@ -59,15 +61,20 @@ class ObstacleDetector(Node):
         trigger_msg = Bool()
 
         if object_detected:
-            # Rising-edge: re-enable new cycle
+            # If we've already published True this cycle, do nothing further
+            if self.triggered:
+                self.prev_object_detected = True
+                return
+
+            # Rising-edge: start fresh
             if not self.prev_object_detected:
                 self.aligned = False
 
-            # always clear previous trigger first
+            # Clear any previous trigger
             trigger_msg.data = False
             self.trigger_pub.publish(trigger_msg)
 
-            # read distances at ±front_angle_range
+            # Read distances at the two edges of our scan
             d_left  = msg.ranges[end_idx]
             d_right = msg.ranges[start_idx]
             if not (math.isfinite(d_left) and math.isfinite(d_right)):
@@ -75,52 +82,41 @@ class ObstacleDetector(Node):
                 return
 
             error        = d_left - d_right
-            start_thresh = 0.02    # start aligning if |error| > 2 cm
-            finish_tol   = 0.005   # done aligning if |error| < 5 mm
+            start_thresh = 0.02    # start aligning if |error| > 2 cm
+            finish_tol   = 0.005   # consider aligned if |error| < 5 mm
 
             if abs(error) > start_thresh:
-                # alignment needed: rotate until within finish_tol
-                if abs(error) > finish_tol:
-                    kp    = 10.0
-                    omega = max(min(kp * -error, 0.5), -0.5)
-                    twist = Twist()
-                    twist.linear.x  = 0.0
-                    twist.angular.z = omega
-                    self.cmd_pub.publish(twist)
-                    self.get_logger().info(
-                        f"Aligning: error={error:.3f} m → ω={omega:.2f}"
-                    )
-                else:
-                    # finished aligning
-                    self.cmd_pub.publish(Twist())  # stop
-                    self.get_logger().info(
-                        f"Aligned (yaw={self.current_yaw:.2f}); publishing trigger."
-                    )
-                    trigger_msg.data = True
-                    self.trigger_pub.publish(trigger_msg)
-                    # reset for next cycle
-                    self.aligned = True
-                    self.prev_object_detected = False
-
-            else:
-                # no alignment needed: immediately trigger
-                self.cmd_pub.publish(Twist())  # ensure stopped
+                # Still need to align: rotate to reduce error
+                kp    = 10.0
+                omega = max(min(kp * -error, 0.5), -0.5)
+                twist = Twist()
+                twist.linear.x  = 0.0
+                twist.angular.z = omega
+                self.cmd_pub.publish(twist)
                 self.get_logger().info(
-                    f"No alignment needed (error={error:.3f}); publishing trigger."
+                    f"Aligning: error={error:.3f} m → ω={omega:.2f}"
+                )
+            else:
+                # Either no alignment needed or alignment now complete
+                # Stop any motion
+                self.cmd_pub.publish(Twist())
+                self.get_logger().info(
+                    f"Aligned (yaw={self.current_yaw:.2f}); publishing trigger."
                 )
                 trigger_msg.data = True
                 self.trigger_pub.publish(trigger_msg)
-                # reset for next cycle
-                self.aligned = True
-                self.prev_object_detected = False
+                # Mark that we've triggered; skip further until obstacle clears
+                self.triggered = True
 
+            # Mark obstacle seen
             self.prev_object_detected = True
 
         else:
-            # no obstacle: clear everything
+            # No obstacle: reset everything for next time
             trigger_msg.data = False
             self.trigger_pub.publish(trigger_msg)
             self.prev_object_detected = False
+            self.triggered           = False
             self.aligned              = False
 
 def main(args=None):
