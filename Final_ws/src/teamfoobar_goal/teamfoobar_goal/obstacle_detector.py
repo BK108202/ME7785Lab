@@ -76,7 +76,7 @@ class ObstacleDetector(Node):
 
             error        = d_left - d_right
             start_thresh = 0.02    # start aligning if |error| > 2 cm
-            finish_tol   = 0.005   # done aligning if |error| < 5 mm
+            finish_tol   = 0   # done aligning if |error| < 5 mm
 
             if abs(error) > start_thresh:
                 # alignment needed: rotate until within finish_tol
