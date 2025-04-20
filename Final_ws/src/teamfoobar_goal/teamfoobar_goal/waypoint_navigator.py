@@ -96,7 +96,7 @@ class WaypointNavigator(Node):
         elif msg.data == 2:
             self.desired_turn_angle = -math.pi / 2   # Turn right 90°.
         elif msg.data == 3 or msg.data == 4:
-            self.desired_turn_angle = math.pi - 0.001        # Turn 180°.
+            self.desired_turn_angle = math.pi        # Turn 180°.
         else:
             self.get_logger().warn(f"Unrecognized sign: {msg.data}. Ignoring.")
             return
