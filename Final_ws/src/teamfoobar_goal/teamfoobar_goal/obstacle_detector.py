@@ -81,7 +81,7 @@ class ObstacleDetector(Node):
             if abs(error) > start_thresh:
                 # alignment needed: rotate until within finish_tol
                 if abs(error) > finish_tol:
-                    kp    = 10.0
+                    kp    = 5.0
                     omega = max(min(kp * -error, 0.5), -0.5)
                     twist = Twist()
                     twist.linear.x  = 0.0
