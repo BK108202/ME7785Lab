@@ -32,7 +32,6 @@ class ObstacleDetector(Node):
         self.front_angle_range     = math.radians(15)
         self.prev_object_detected  = False
         self.current_yaw           = 0.0
-        self.triggered             = False    # NEW: whether we've already fired this cycle
 
     def odom_callback(self, msg: Odometry):
         """Track current yaw from odometry for logging or future use."""
@@ -43,7 +42,7 @@ class ObstacleDetector(Node):
         )
 
     def scan_callback(self, msg: LaserScan):
-        """Detect obstacle, align only if needed, then publish trigger_sign once."""
+        """Detect obstacle, align only if error > 0.05 m, tol=0.005 m, then publish trigger_sign."""
         # Compute indices for ±front_angle_range
         start_idx = int((-self.front_angle_range - msg.angle_min) / msg.angle_increment)
         end_idx   = int(( self.front_angle_range - msg.angle_min) / msg.angle_increment)
@@ -60,17 +59,15 @@ class ObstacleDetector(Node):
         trigger_msg = Bool()
 
         if object_detected:
-
-            # On the rising edge, reset cycle
+            # Rising-edge: re-enable new cycle
             if not self.prev_object_detected:
-                self.triggered = False
+                self.aligned = False
 
-            # If we've already triggered once this cycle, do nothing
-            if self.triggered:
-                self.prev_object_detected = True
-                return
+            # always clear previous trigger first
+            trigger_msg.data = False
+            self.trigger_pub.publish(trigger_msg)
 
-            # Read the two edge distances
+            # read distances at ±front_angle_range
             d_left  = msg.ranges[end_idx]
             d_right = msg.ranges[start_idx]
             if not (math.isfinite(d_left) and math.isfinite(d_right)):
@@ -78,40 +75,53 @@ class ObstacleDetector(Node):
                 return
 
             error        = d_left - d_right
-            start_thresh = 0.02    # start aligning if |error| > 5 cm
+            start_thresh = 0.02    # start aligning if |error| > 2 cm
             finish_tol   = 0.005   # done aligning if |error| < 5 mm
 
-            # If alignment needed
             if abs(error) > start_thresh:
-                # Rotate toward the wall
-                kp    = 10.0
-                omega = max(min(kp * -error, 0.5), -0.5)
-                twist = Twist()
-                twist.linear.x  = 0.0
-                twist.angular.z = omega
-                self.cmd_pub.publish(twist)
-                self.get_logger().info(f"Aligning: error={error:.3f} m → ω={omega:.2f}")
-            else:
-                # Either no alignment needed or we're finished aligning
-                twist = Twist()  # stop movement
-                self.cmd_pub.publish(twist)
+                # alignment needed: rotate until within finish_tol
+                if abs(error) > finish_tol:
+                    kp    = 10.0
+                    omega = max(min(kp * -error, 0.5), -0.5)
+                    twist = Twist()
+                    twist.linear.x  = 0.0
+                    twist.angular.z = omega
+                    self.cmd_pub.publish(twist)
+                    self.get_logger().info(
+                        f"Aligning: error={error:.3f} m → ω={omega:.2f}"
+                    )
+                else:
+                    # finished aligning
+                    self.cmd_pub.publish(Twist())  # stop
+                    self.get_logger().info(
+                        f"Aligned (yaw={self.current_yaw:.2f}); publishing trigger."
+                    )
+                    trigger_msg.data = True
+                    self.trigger_pub.publish(trigger_msg)
+                    # reset for next cycle
+                    self.aligned = True
+                    self.prev_object_detected = False
 
-                self.get_logger().info(f"Aligned (yaw={self.current_yaw:.2f}); publishing trigger.")
+            else:
+                # no alignment needed: immediately trigger
+                self.cmd_pub.publish(Twist())  # ensure stopped
+                self.get_logger().info(
+                    f"No alignment needed (error={error:.3f}); publishing trigger."
+                )
                 trigger_msg.data = True
                 self.trigger_pub.publish(trigger_msg)
+                # reset for next cycle
+                self.aligned = True
+                self.prev_object_detected = False
 
-                # Mark that we've triggered—skip further alignment until obstacle clears
-                self.triggered = True
-
-            # Mark that obstacle is still present
             self.prev_object_detected = True
 
         else:
-            # No obstacle: reset everything
+            # no obstacle: clear everything
             trigger_msg.data = False
             self.trigger_pub.publish(trigger_msg)
             self.prev_object_detected = False
-            self.triggered           = False
+            self.aligned              = False
 
 def main(args=None):
     rclpy.init(args=args)
