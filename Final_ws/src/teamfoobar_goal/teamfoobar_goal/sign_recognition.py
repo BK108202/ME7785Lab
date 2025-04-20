@@ -8,7 +8,6 @@ import cv2
 import numpy as np
 from skimage.feature import hog
 from scipy.stats import skew
-import os
 import importlib.resources
 from collections import Counter
 
@@ -24,14 +23,8 @@ class SignRecognition(Node):
         
         self.bridge = CvBridge()
         # Load the pre-trained KNN model.
-        # model_path = os.path.join(os.path.dirname(__file__), 'knn_model.xml')
-        # self.get_logger().info(f"Loading KNN model from: {model_path}")
-        # self.knn_model = cv2.ml.KNearest_load(model_path)
-        # if self.knn_model.empty():
-        #     self.get_logger().error("Failed to load the KNN model. Please check the knn_model.xml file.")
-        #     return
         with importlib.resources.path('teamfoobar_goal', 'knn_model.xml') as model_path:
-            model_path = str(model_path)  # Convert Path object to string if needed.
+            model_path = str(model_path)
             self.get_logger().info(f"Loading KNN model from: {model_path}")
             self.knn_model = cv2.ml.KNearest_load(model_path)
             if self.knn_model.empty():
@@ -39,7 +32,10 @@ class SignRecognition(Node):
             else:
                 self.get_logger().info("Model Loaded")
 
-        self.latest_image = None
+        # Buffer state for collecting multiple frames
+        self.latest_image   = None
+        self.collecting     = False
+        self.image_buffer   = []
 
     def image_callback(self, msg):
         try:
@@ -51,6 +47,14 @@ class SignRecognition(Node):
             cv2.waitKey(1)
         except Exception as e:
             self.get_logger().error(f"Error converting image: {e}")
+            return
+
+        # Buffer frames if we’re in a collection cycle
+        if self.collecting:
+            self.image_buffer.append(cv_image.copy())
+            if len(self.image_buffer) >= 10:
+                self.collecting = False
+                self.process_buffer()
 
     def trigger_callback(self, msg: Bool):
         self.get_logger().info(f"Received trigger message: {msg.data}")
@@ -61,32 +65,34 @@ class SignRecognition(Node):
             self.get_logger().warn("No image available for sign recognition.")
             return
 
-        # Extract features
-        features = self.preprocess_image(self.latest_image)
-        if features.size == 0:
-            self.get_logger().warn("No features extracted from image. Skipping classification.")
-            return
+        # Start a new collection cycle
+        self.image_buffer.clear()
+        self.collecting = True
+        self.get_logger().info("Collecting 10 frames for classification...")
 
-        # Prepare sample
-        sample = features.reshape(1, -1).astype(np.float32)
-
-        # Run KNN 10 times and collect votes
+    def process_buffer(self):
+        """Extract features from each buffered image, run KNN once per image,
+           then majority-vote and publish the result."""
         votes = []
-        for i in range(10):
+        for img in self.image_buffer:
+            features = self.preprocess_image(img)
+            if features.size == 0:
+                continue
+            sample = features.reshape(1, -1).astype(np.float32)
             try:
                 ret, _, _, _ = self.knn_model.findNearest(sample, 5)
                 votes.append(int(ret))
             except cv2.error as e:
-                self.get_logger().error(f"Error in findNearest on iteration {i}: {e}")
+                self.get_logger().error(f"KNN error: {e}")
 
         if not votes:
-            self.get_logger().warn("All KNN predictions failed.")
+            self.get_logger().warn("No valid predictions from buffered frames.")
             return
 
         # Majority vote
         vote_counts = Counter(votes)
         predicted = vote_counts.most_common(1)[0][0]
-        self.get_logger().info(f"KNN votes: {votes} → chosen: {predicted}")
+        self.get_logger().info(f"Buffered votes: {votes} → chosen: {predicted}")
 
         # Ignore sign 0 as before
         if predicted == 0:
@@ -100,11 +106,8 @@ class SignRecognition(Node):
         self.get_logger().info("Published recognized sign message.")
 
     def preprocess_image(self, img, output_size=(50, 50)):
-        # Add self
         # Convert to LAB
         LAB = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-
-        # separate channels
         L, A, B = cv2.split(LAB)
 
         # get the maximum between the A and B pixel by pixel
@@ -117,7 +120,7 @@ class SignRecognition(Node):
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7,7))
         morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
 
-        # get contours (fixed unpacking)
+        # get contours
         contours, _ = cv2.findContours(morph, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         no_contour = False
@@ -125,99 +128,49 @@ class SignRecognition(Node):
 
         # initial rough check for any contour above tiny area
         image_with_contour = [cnt for cnt in contours if cv2.contourArea(cnt) > min_area]
-        if image_with_contour:
-            for c in contours:
-                area = cv2.contourArea(c)
-                perimeter = cv2.arcLength(c, True)
-                if area < 20000 and perimeter > 100:
-                    M = cv2.moments(c)
-                    # image_with_contours = cv2.drawContours(img, contours, -1, (255, 0, 0), 2)
-                    ix, iy, iw, ih = cv2.boundingRect(c)
-                    # cv2.rectangle(image_with_contours, (ix, iy), (ix+iw, iy+ih), (0, 255, 0), 5)
-                    # if M['m00'] != 0:
-                    #     x = int(M['m10']/M['m00'])
-                    #     y = int(M['m01']/M['m00'])
-                    #     cv2.drawMarker(img, (x, y), (0, 255, 0), cv2.MARKER_DIAMOND, markerSize=10, thickness=2)
 
         if not image_with_contour:
             no_contour = True
-            print(no_contour)
         else:
             no_contour = True
 
         # If no arrow is found, try green/blue threshold fallback
         if no_contour:
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            # # Define contrast and brightness adjustments
-            alpha = 1.0  # Increase contrast by 0%
-            beta = 25   # Increase brightness by 10 
-
-            # # # Apply the contrast and brightness adjustments
+            alpha = 1.0
+            beta = 25
             bright_img = cv2.convertScaleAbs(img, alpha=alpha, beta=beta)
-            blurred_image = cv2.GaussianBlur(bright_img,(15,15),0)
-            # Convert the image to HSV
+            blurred_image = cv2.GaussianBlur(bright_img, (15,15), 0)
             hsv_image = cv2.cvtColor(blurred_image, cv2.COLOR_BGR2HSV)
 
-            # # Define the lower and upper bounds for red, green, and blue
-            # lower_red = np.array([0, 100, 100])
-            # upper_red = np.array([10, 255, 255])
-
-            # lower_green = np.array([40, 100, 100])
-            # upper_green = np.array([238, 255, 255])
-
-            # lower_blue = np.array([90, 100, 100])
-            # upper_blue = np.array([130, 255, 255])
-
-            # # Create masks for each color
-            # red_mask = cv2.inRange(hsv_image, lower_red, upper_red)
-            # green_mask = cv2.inRange(hsv_image, lower_green, upper_green)
-            # blue_mask = cv2.inRange(hsv_image, lower_blue, upper_blue)
-
-            # # Combine the masks
-            # combined_mask = cv2.bitwise_or(red_mask, green_mask)
-            # combined_mask = cv2.bitwise_or(combined_mask, blue_mask)
-
-
             threshold = 300
-            # Create a binary mask: 
-            # - pixels with value greater than threshold are set to 255 (white)
-            # - pixels with value less than or equal to threshold are set to 0 (black)
             _, white_mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
-
-            # Invert the mask to select the non-white regions
             white_mask_inv = cv2.bitwise_not(white_mask)
-
             result = cv2.bitwise_and(img, img, mask=white_mask_inv)
 
             lower_green = np.array([20, 0, 0])
             upper_green = np.array([235, 255, 255])
-
-            lower_blue = np.array([90, 100, 100])
-            upper_blue = np.array([130, 255, 255])
+            lower_blue  = np.array([90, 100, 100])
+            upper_blue  = np.array([130, 255, 255])
 
             green_mask = cv2.inRange(hsv_image, lower_green, upper_green)
             blue_mask  = cv2.inRange(hsv_image, lower_blue, upper_blue)
 
             combined_mask = cv2.bitwise_or(green_mask, blue_mask)
             combined_mask = cv2.bitwise_or(combined_mask, white_mask)
-            # Apply the mask to the original image
             masked_image = cv2.bitwise_and(img, img, mask=combined_mask)
 
             ret, thresh1 = cv2.threshold(combined_mask, 180, 255, cv2.THRESH_BINARY)
-            #ret, thresh1 = cv2.threshold(combined_mask, 127, 255, cv2.THRESH_BINARY)
-            # # Threshold Adaptive Mean
-            thresh2 = cv2.adaptiveThreshold(combined_mask, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)
+            thresh2 = cv2.adaptiveThreshold(combined_mask, 255,
+                                            cv2.ADAPTIVE_THRESH_MEAN_C,
+                                            cv2.THRESH_BINARY, 11, 2)
             kernel1 = np.ones((7,7))
             morph1 = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel1, iterations=1)
-
-            # Apply the mask to the original image
             masked_image = cv2.bitwise_and(img, img, mask=combined_mask)
 
-
-            # Find contours
             contours, _ = cv2.findContours(morph1, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-        # ——— Updated: pick contour whose centroid is closest to image center ———
+        # Pick contour whose centroid is closest to image center
         img_h, img_w = img.shape[:2]
         center_x, center_y = img_w / 2, img_h / 2
         min_dist = float('inf')
@@ -242,7 +195,6 @@ class SignRecognition(Node):
             cropped_arrow = img[y:y+h_box, x:x+w_box]
             resized_img = cv2.resize(cropped_arrow, output_size)
         else:
-            # center‑200×200 fallback crop + resize
             h, w = img.shape[:2]
             crop_w, crop_h = 200, 200
             start_x = max((w - crop_w) // 2, 0)
@@ -253,7 +205,7 @@ class SignRecognition(Node):
                 center_crop = img[start_y:start_y+crop_h, start_x:start_x+crop_w]
             resized_img = cv2.resize(center_crop, output_size)
 
-        # Using 8 bins per channel over [0,256]
+        # Color histogram
         histSize = [8]
         hist_range = [0, 256]
         channels = [0, 1, 2]
@@ -264,7 +216,7 @@ class SignRecognition(Node):
             color_hist.append(hist)
         color_hist = np.concatenate(color_hist)
 
-        # Convert to grayscale for HOG
+        # HOG features
         gray_img = cv2.cvtColor(resized_img, cv2.COLOR_BGR2GRAY)
         eq_img = cv2.equalizeHist(gray_img)
         normalized_img = eq_img.astype(np.float32) / 255.0
