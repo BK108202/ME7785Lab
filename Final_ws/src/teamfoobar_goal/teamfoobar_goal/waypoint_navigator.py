@@ -163,7 +163,7 @@ class WaypointNavigator(Node):
                 self.get_logger().info("Turn complete.")
                 self.turning = False
             else:
-                kp_turn = 1.5
+                kp_turn = 0.2
                 error = self.desired_turn_angle - delta
                 error = math.atan2(math.sin(error), math.cos(error))
                 omega = max(min(kp_turn * error, 0.5), -0.5)
