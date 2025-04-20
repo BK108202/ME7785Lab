@@ -32,8 +32,7 @@ class ObstacleDetector(Node):
         self.front_angle_range     = math.radians(15)
         self.prev_object_detected  = False
         self.current_yaw           = 0.0
-        self.triggered             = False    # NEW: have we already published a True trigger this cycle?
-        self.aligned               = False
+        self.triggered             = False    # NEW: whether we've already fired this cycle
 
     def odom_callback(self, msg: Odometry):
         """Track current yaw from odometry for logging or future use."""
@@ -44,7 +43,7 @@ class ObstacleDetector(Node):
         )
 
     def scan_callback(self, msg: LaserScan):
-        """Detect obstacle, align only if needed, then publish trigger_sign exactly once."""
+        """Detect obstacle, align only if needed, then publish trigger_sign once."""
         # Compute indices for ±front_angle_range
         start_idx = int((-self.front_angle_range - msg.angle_min) / msg.angle_increment)
         end_idx   = int(( self.front_angle_range - msg.angle_min) / msg.angle_increment)
@@ -61,20 +60,17 @@ class ObstacleDetector(Node):
         trigger_msg = Bool()
 
         if object_detected:
-            # If we've already published True this cycle, do nothing further
+
+            # On the rising edge, reset cycle
+            if not self.prev_object_detected:
+                self.triggered = False
+
+            # If we've already triggered once this cycle, do nothing
             if self.triggered:
                 self.prev_object_detected = True
                 return
 
-            # Rising-edge: start fresh
-            if not self.prev_object_detected:
-                self.aligned = False
-
-            # Clear any previous trigger
-            trigger_msg.data = False
-            self.trigger_pub.publish(trigger_msg)
-
-            # Read distances at the two edges of our scan
+            # Read the two edge distances
             d_left  = msg.ranges[end_idx]
             d_right = msg.ranges[start_idx]
             if not (math.isfinite(d_left) and math.isfinite(d_right)):
@@ -82,42 +78,40 @@ class ObstacleDetector(Node):
                 return
 
             error        = d_left - d_right
-            start_thresh = 0.02    # start aligning if |error| > 2 cm
-            finish_tol   = 0.005   # consider aligned if |error| < 5 mm
+            start_thresh = 0.02    # start aligning if |error| > 5 cm
+            finish_tol   = 0.005   # done aligning if |error| < 5 mm
 
+            # If alignment needed
             if abs(error) > start_thresh:
-                # Still need to align: rotate to reduce error
+                # Rotate toward the wall
                 kp    = 10.0
                 omega = max(min(kp * -error, 0.5), -0.5)
                 twist = Twist()
                 twist.linear.x  = 0.0
                 twist.angular.z = omega
                 self.cmd_pub.publish(twist)
-                self.get_logger().info(
-                    f"Aligning: error={error:.3f} m → ω={omega:.2f}"
-                )
+                self.get_logger().info(f"Aligning: error={error:.3f} m → ω={omega:.2f}")
             else:
-                # Either no alignment needed or alignment now complete
-                # Stop any motion
-                self.cmd_pub.publish(Twist())
-                self.get_logger().info(
-                    f"Aligned (yaw={self.current_yaw:.2f}); publishing trigger."
-                )
+                # Either no alignment needed or we're finished aligning
+                twist = Twist()  # stop movement
+                self.cmd_pub.publish(twist)
+
+                self.get_logger().info(f"Aligned (yaw={self.current_yaw:.2f}); publishing trigger.")
                 trigger_msg.data = True
                 self.trigger_pub.publish(trigger_msg)
-                # Mark that we've triggered; skip further until obstacle clears
+
+                # Mark that we've triggered—skip further alignment until obstacle clears
                 self.triggered = True
 
-            # Mark obstacle seen
+            # Mark that obstacle is still present
             self.prev_object_detected = True
 
         else:
-            # No obstacle: reset everything for next time
+            # No obstacle: reset everything
             trigger_msg.data = False
             self.trigger_pub.publish(trigger_msg)
             self.prev_object_detected = False
             self.triggered           = False
-            self.aligned              = False
 
 def main(args=None):
     rclpy.init(args=args)
