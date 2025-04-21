@@ -92,7 +92,7 @@ class WaypointNavigator(Node):
         # Collect reading
         self.sign_buffer.append(msg.data)
         self.get_logger().info(f"Sign reading buffered: {msg.data} (size={len(self.sign_buffer)})")
-        if len(self.sign_buffer) < 10:
+        if len(self.sign_buffer) < 20:
             return
 
         # Determine majority sign
